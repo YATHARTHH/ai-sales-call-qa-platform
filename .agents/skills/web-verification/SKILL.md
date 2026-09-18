@@ -1,4 +1,4 @@
-﻿---
+---
 name: web-verification
 description: >-
   Mandatory skill to verify technical requirements, package versions, API schemas, domain regulations, and architecture choices against the live web using search_web and read_url_content. Use whenever implementing or validating libraries, external APIs, legal/compliance rules, or architectural decisions.

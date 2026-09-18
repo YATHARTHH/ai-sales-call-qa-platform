@@ -1,4 +1,4 @@
-﻿# AI Sales Call QA & Post-Sale Compliance Platform
+# AI Sales Call QA & Post-Sale Compliance Platform
 
 > **Score the sale before it ships.**
 > An automated post-call compliance verification, verbatim script checker, and audit scoring engine built for CIMET CRM sales validation.

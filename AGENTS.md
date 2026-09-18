@@ -1,4 +1,4 @@
-﻿# SalesCall QA Platform — Project Guidelines & Web Verification Rule
+# SalesCall QA Platform — Project Guidelines & Web Verification Rule
 
 ## Mandatory Instruction: Always Verify Technical & Compliance Details via Web
 
