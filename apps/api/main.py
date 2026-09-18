@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from apps.api.middleware import CorrelationAndMetricsMiddleware
 from apps.api.routers.health import router as health_router
 from apps.api.routers.recordings import router as recordings_router
+from apps.api.routers.transcripts import router as transcripts_router
 from packages.contracts.errors import ErrorDetail, ErrorResponse
 from packages.domain.exceptions import DomainError
 from packages.infrastructure.config.settings import settings
@@ -83,3 +84,4 @@ async def generic_exception_handler(request: Request, exc: Exception):
 # Mount routers
 app.include_router(health_router)
 app.include_router(recordings_router, prefix="/api/v1")
+app.include_router(transcripts_router, prefix="/api/v1")

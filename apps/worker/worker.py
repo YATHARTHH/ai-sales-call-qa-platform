@@ -7,7 +7,11 @@ import signal
 
 import redis.asyncio as aioredis
 
-from apps.worker.tasks import execute_smoke_job, recover_stale_jobs
+from apps.worker.tasks import (
+    execute_smoke_job,
+    execute_transcription_job,
+    recover_stale_jobs,
+)
 from packages.infrastructure.config.settings import settings
 from packages.observability.logging import configure_logging, get_logger
 
@@ -42,7 +46,9 @@ class SalesCallWorker:
                         logger.warning("stale_job_recovery_error", error=str(e))
 
                 # 2. Pop job from Redis list queue (timeout 1 second)
-                item = await redis_client.blpop(["queue:smoke_job", "queue:ingest_job"], timeout=1)
+                item = await redis_client.blpop(
+                    ["queue:smoke_job", "queue:ingest_job", "queue:transcription"], timeout=1
+                )
                 if item:
                     queue_name, data = item
                     payload = json.loads(data)
@@ -51,6 +57,12 @@ class SalesCallWorker:
 
                     if queue_name == "queue:smoke_job":
                         await execute_smoke_job(
+                            job_id=job_id,
+                            worker_id=self.worker_id,
+                            correlation_id=correlation_id,
+                        )
+                    elif queue_name == "queue:transcription":
+                        await execute_transcription_job(
                             job_id=job_id,
                             worker_id=self.worker_id,
                             correlation_id=correlation_id,

@@ -76,6 +76,7 @@ class PipelineJob:
     worker_id: str | None = None
     heartbeat_at: datetime | None = None
     lease_until: datetime | None = None
+    lease_generation: int = 0
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -116,11 +117,19 @@ class PipelineJob:
         """Format: {recording_id}:{stage}:{input_artifact_hash}:{processor_version}"""
         return f"{recording_id}:{stage}:{input_artifact_hash}:{processor_version}"
 
+    @staticmethod
+    def build_evaluation_idempotency_key(
+        recording_id: str, transcription_key: str, eval_config_version: str
+    ) -> str:
+        """Build stable evaluation job idempotency key based on transcription_key lineage."""
+        return f"{recording_id}:EVALUATING:{transcription_key}:{eval_config_version}"
+
     def acquire_lease(self, worker_id: str, lease_duration_seconds: int = 60) -> None:
-        """Claim job lease by an active worker."""
+        """Claim job lease by an active worker, atomically bumping lease_generation."""
         now = datetime.now(UTC)
         self.status = JobStatus.RUNNING
         self.worker_id = worker_id
+        self.lease_generation += 1
         self.started_at = self.started_at or now
         self.heartbeat_at = now
         self.lease_until = now + timedelta(seconds=lease_duration_seconds)

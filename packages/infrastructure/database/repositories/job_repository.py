@@ -1,8 +1,9 @@
 """SQLAlchemy implementation of JobRepositoryPort."""
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +34,7 @@ class SqlAlchemyJobRepository(JobRepositoryPort):
             worker_id=model.worker_id,
             heartbeat_at=model.heartbeat_at,
             lease_until=model.lease_until,
+            lease_generation=model.lease_generation,
             started_at=model.started_at,
             completed_at=model.completed_at,
             created_at=model.created_at,
@@ -40,7 +42,11 @@ class SqlAlchemyJobRepository(JobRepositoryPort):
         )
 
     async def get_by_id(self, job_id: str) -> PipelineJob | None:
-        stmt = select(PipelineJobModel).where(PipelineJobModel.id == job_id)
+        stmt = (
+            select(PipelineJobModel)
+            .where(PipelineJobModel.id == job_id)
+            .execution_options(populate_existing=True)
+        )
         res = await self._session.execute(stmt)
         model = res.scalar_one_or_none()
         if not model:
@@ -48,7 +54,11 @@ class SqlAlchemyJobRepository(JobRepositoryPort):
         return self._to_domain(model)
 
     async def get_by_idempotency_key(self, idempotency_key: str) -> PipelineJob | None:
-        stmt = select(PipelineJobModel).where(PipelineJobModel.idempotency_key == idempotency_key)
+        stmt = (
+            select(PipelineJobModel)
+            .where(PipelineJobModel.idempotency_key == idempotency_key)
+            .execution_options(populate_existing=True)
+        )
         res = await self._session.execute(stmt)
         model = res.scalar_one_or_none()
         if not model:
@@ -74,6 +84,7 @@ class SqlAlchemyJobRepository(JobRepositoryPort):
             worker_id=job.worker_id,
             heartbeat_at=job.heartbeat_at,
             lease_until=job.lease_until,
+            lease_generation=job.lease_generation,
             started_at=job.started_at,
             completed_at=job.completed_at,
             created_at=job.created_at,
@@ -102,3 +113,64 @@ class SqlAlchemyJobRepository(JobRepositoryPort):
         if winner is not None:
             return winner, False
         raise RuntimeError("Failed to resolve job on idempotency_key conflict")
+
+    async def claim_job_lease_atomic(
+        self, job_id: str, worker_id: str, lease_duration_seconds: int = 60
+    ) -> PipelineJob | None:
+        """Atomically claim job lease and increment lease_generation in a single atomic SQL statement."""
+        now = datetime.now(UTC)
+        lease_until = now + timedelta(seconds=lease_duration_seconds)
+
+        stmt = (
+            update(PipelineJobModel)
+            .where(PipelineJobModel.id == job_id)
+            .values(
+                status=JobStatus.RUNNING.value,
+                worker_id=worker_id,
+                started_at=PipelineJobModel.started_at or now,
+                heartbeat_at=now,
+                lease_until=lease_until,
+                lease_generation=PipelineJobModel.lease_generation + 1,
+                updated_at=now,
+            )
+            .execution_options(synchronize_session=False)
+            .returning(*PipelineJobModel.__table__.columns)
+        )
+        res = await self._session.execute(stmt)
+        row = res.one_or_none()
+        if not row:
+            return None
+        await self._session.flush()
+        return self._to_domain(row)
+
+    async def complete_job_with_lease_fence(
+        self,
+        job_id: str,
+        worker_id: str,
+        lease_generation: int,
+        completed_at: datetime | None = None,
+    ) -> bool:
+        """Atomically mark job COMPLETED only if the worker still owns the valid lease_generation."""
+        now = completed_at or datetime.now(UTC)
+
+        stmt = (
+            update(PipelineJobModel)
+            .where(
+                PipelineJobModel.id == job_id,
+                PipelineJobModel.worker_id == worker_id,
+                PipelineJobModel.lease_generation == lease_generation,
+                PipelineJobModel.status == JobStatus.RUNNING.value,
+                PipelineJobModel.lease_until > now,
+            )
+            .values(
+                status=JobStatus.COMPLETED.value,
+                completed_at=now,
+                lease_until=None,
+                updated_at=now,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        result = await self._session.execute(stmt)
+        await self._session.flush()
+        return result.rowcount > 0
+

@@ -56,6 +56,20 @@ class TranscriptModel(Base):
     output_artifact_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("artifacts.id"), nullable=False, index=True
     )
+    transcription_key: Mapped[str] = mapped_column(
+        String(128), unique=True, index=True, nullable=False
+    )
+    transcription_identity: Mapped[str] = mapped_column(String(255), nullable=False)
+    availability: Mapped[str] = mapped_column(String(32), default="AVAILABLE", nullable=False)
+    processor_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    transcription_config_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    diarization_config_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    role_mapping_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    audio_duration_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    transcribed_coverage_end_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    leading_uncovered_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    trailing_uncovered_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    behavior_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     asr_provider: Mapped[str] = mapped_column(String(64), nullable=False)
     asr_model: Mapped[str] = mapped_column(String(64), nullable=False)
     asr_model_version: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -82,7 +96,9 @@ class TranscriptSegmentModel(Base):
         String(64), ForeignKey("transcripts.id"), nullable=False, index=True
     )
     segment_order: Mapped[int] = mapped_column(Integer, nullable=False)
-    speaker: Mapped[str] = mapped_column(String(32), nullable=False)
+    speaker_label: Mapped[str] = mapped_column(String(32), default="SPEAKER_00", nullable=False)
+    business_role: Mapped[str] = mapped_column(String(32), default="UNKNOWN", nullable=False)
+    role_confidence: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
     start_ms: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     end_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
@@ -92,5 +108,7 @@ class TranscriptSegmentModel(Base):
 
     __table_args__ = (
         Index("ix_segments_transcript_order", "transcript_id", "segment_order"),
+        Index("ix_segments_transcript_time", "transcript_id", "start_ms"),
         CheckConstraint("start_ms >= 0 AND end_ms >= start_ms", name="ck_segment_timestamps"),
     )
+

@@ -55,3 +55,25 @@ class IdempotencyConflictError(DomainError):
             code="IDEMPOTENCY_CONFLICT",
         )
         self.idempotency_key = idempotency_key
+
+
+class ArtifactIntegrityError(DomainError):
+    """Raised when an audio or transcript artifact fails cryptographic or file integrity validation."""
+
+    def __init__(self, message: str):
+        super().__init__(message, code="ARTIFACT_INTEGRITY_ERROR")
+
+
+class ProviderOutputValidationError(DomainError):
+    """Raised when untrusted provider output fails schema, timing, or consistency checks."""
+
+    def __init__(self, message: str):
+        super().__init__(message, code="PROVIDER_OUTPUT_VALIDATION_ERROR")
+
+
+class LeaseLostError(DomainError):
+    """Raised when a worker attempts to commit or finalize a job whose lease ownership was lost."""
+
+    def __init__(self, message: str):
+        super().__init__(message, code="LEASE_LOST")
+

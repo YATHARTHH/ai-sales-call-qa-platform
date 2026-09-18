@@ -80,13 +80,39 @@ class TranscriptRepositoryPort(ABC):
     ) -> None:
         """Persist transcript metadata and utterance segments atomically."""
 
+    async def save_transcript_idempotent(
+        self, transcript: Transcript, segments: list[TranscriptSegment]
+    ) -> tuple[Transcript, bool]:
+        """Persist transcript, resolving transcription_key uniqueness conflicts idempotently."""
+        raise NotImplementedError
+
     @abstractmethod
     async def get_transcript(self, transcript_id: str) -> Transcript | None:
         """Fetch transcript metadata by ID."""
 
+    async def get_transcript_by_key(self, transcription_key: str) -> Transcript | None:
+        """Fetch transcript by unique transcription idempotency key."""
+        raise NotImplementedError
+
+    async def get_transcript_by_recording_id(self, recording_id: str) -> Transcript | None:
+        """Fetch transcript linked to a recording."""
+        raise NotImplementedError
+
     @abstractmethod
     async def get_transcript_segments(self, transcript_id: str) -> list[TranscriptSegment]:
         """Fetch all ordered segments for a transcript."""
+
+    async def get_segments_paginated(
+        self,
+        transcript_id: str,
+        offset: int = 0,
+        limit: int = 100,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+        include_words: bool = False,
+    ) -> tuple[list[TranscriptSegment], int]:
+        """Fetch paginated segments with optional time-range scrubbing and word redaction."""
+        raise NotImplementedError
 
 
 class ArtifactRepositoryPort(ABC):
@@ -119,6 +145,24 @@ class JobRepositoryPort(ABC):
     @abstractmethod
     async def save_job_idempotent(self, job: PipelineJob) -> tuple[PipelineJob, bool]:
         """Persist pipeline job, returning existing one on idempotency_key uniqueness conflict."""
+
+    async def claim_job_lease_atomic(
+        self, job_id: str, worker_id: str, lease_duration_seconds: int = 60
+    ) -> PipelineJob | None:
+        """Atomically claim job lease and increment lease_generation in a single atomic SQL statement."""
+        raise NotImplementedError
+
+    async def complete_job_with_lease_fence(
+        self,
+        job_id: str,
+        worker_id: str,
+        lease_generation: int,
+        completed_at: datetime | None = None,
+    ) -> bool:
+        """Atomically mark job COMPLETED only if the worker still owns the valid lease_generation."""
+        raise NotImplementedError
+
+
 
 
 class CheckLibraryRepositoryPort(ABC):

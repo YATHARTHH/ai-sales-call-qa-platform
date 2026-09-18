@@ -1,0 +1,213 @@
+{
+  "benchmark_scenario": "lead_3613790_cimet_brief_1",
+  "metadata": {
+    "call_duration_seconds": 1800.0,
+    "call_duration_ms": 1800000,
+    "lead_id": "3613790",
+    "retailer_code": "RET_001",
+    "agent_name": "Sarah",
+    "customer_name": "Jane Smith",
+    "language": "en-AU",
+    "classification": "synthetic_integration_benchmark"
+  },
+  "speakers": {
+    "SPEAKER_00": {
+      "ground_truth_role": "AGENT",
+      "name": "Sarah"
+    },
+    "SPEAKER_01": {
+      "ground_truth_role": "CUSTOMER",
+      "name": "Jane Smith"
+    }
+  },
+  "utterances": [
+    {
+      "speaker_label": "SPEAKER_00",
+      "start_ms": 2500,
+      "end_ms": 7800,
+      "text": "Hello, thank you for calling Energy Comparison Services. My name is Sarah. Am I speaking with Jane Smith?",
+      "words": [
+        {"word": "Hello,", "start_ms": 2500, "end_ms": 2900, "confidence": 0.98},
+        {"word": "thank", "start_ms": 2950, "end_ms": 3200, "confidence": 0.99},
+        {"word": "you", "start_ms": 3250, "end_ms": 3400, "confidence": 0.99},
+        {"word": "for", "start_ms": 3450, "end_ms": 3600, "confidence": 0.97},
+        {"word": "calling", "start_ms": 3650, "end_ms": 4050, "confidence": 0.99},
+        {"word": "Energy", "start_ms": 4100, "end_ms": 4450, "confidence": 0.96},
+        {"word": "Comparison", "start_ms": 4500, "end_ms": 5050, "confidence": 0.98},
+        {"word": "Services.", "start_ms": 5100, "end_ms": 5600, "confidence": 0.97},
+        {"word": "My", "start_ms": 5700, "end_ms": 5850, "confidence": 0.99},
+        {"word": "name", "start_ms": 5900, "end_ms": 6150, "confidence": 0.99},
+        {"word": "is", "start_ms": 6200, "end_ms": 6350, "confidence": 0.99},
+        {"word": "Sarah.", "start_ms": 6400, "end_ms": 6800, "confidence": 0.99},
+        {"word": "Am", "start_ms": 6900, "end_ms": 7050, "confidence": 0.98},
+        {"word": "I", "start_ms": 7100, "end_ms": 7200, "confidence": 0.99},
+        {"word": "speaking", "start_ms": 7250, "end_ms": 7500, "confidence": 0.98},
+        {"word": "with", "start_ms": 7550, "end_ms": 7650, "confidence": 0.99},
+        {"word": "Jane", "start_ms": 7660, "end_ms": 7750, "confidence": 0.99},
+        {"word": "Smith?", "start_ms": 7760, "end_ms": 7800, "confidence": 0.99}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_01",
+      "start_ms": 8200,
+      "end_ms": 13500,
+      "text": "Yes, hi Sarah. Yes, I'm looking to compare electricity plans for my home in Richmond.",
+      "words": [
+        {"word": "Yes,", "start_ms": 8200, "end_ms": 8500, "confidence": 0.99},
+        {"word": "hi", "start_ms": 8600, "end_ms": 8800, "confidence": 0.98},
+        {"word": "Sarah.", "start_ms": 8900, "end_ms": 9300, "confidence": 0.99},
+        {"word": "Yes,", "start_ms": 9400, "end_ms": 9700, "confidence": 0.99},
+        {"word": "I'm", "start_ms": 9800, "end_ms": 10000, "confidence": 0.97},
+        {"word": "looking", "start_ms": 10100, "end_ms": 10450, "confidence": 0.99},
+        {"word": "to", "start_ms": 10500, "end_ms": 10600, "confidence": 0.98},
+        {"word": "compare", "start_ms": 10650, "end_ms": 11100, "confidence": 0.99},
+        {"word": "electricity", "start_ms": 11150, "end_ms": 11750, "confidence": 0.98},
+        {"word": "plans", "start_ms": 11800, "end_ms": 12150, "confidence": 0.99},
+        {"word": "for", "start_ms": 12200, "end_ms": 12350, "confidence": 0.97},
+        {"word": "my", "start_ms": 12400, "end_ms": 12550, "confidence": 0.99},
+        {"word": "home", "start_ms": 12600, "end_ms": 12900, "confidence": 0.98},
+        {"word": "in", "start_ms": 12950, "end_ms": 13100, "confidence": 0.98},
+        {"word": "Richmond.", "start_ms": 13150, "end_ms": 13500, "confidence": 0.99}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_00",
+      "start_ms": 14000,
+      "end_ms": 22000,
+      "text": "Great, I can definitely assist you with that today. I have your address as 12 Bridge Road Richmond Victoria 3121.",
+      "words": [
+        {"word": "Great,", "start_ms": 14000, "end_ms": 14400, "confidence": 0.98},
+        {"word": "I", "start_ms": 14500, "end_ms": 14600, "confidence": 0.99},
+        {"word": "can", "start_ms": 14650, "end_ms": 14850, "confidence": 0.99},
+        {"word": "definitely", "start_ms": 14900, "end_ms": 15450, "confidence": 0.98},
+        {"word": "assist", "start_ms": 15500, "end_ms": 15900, "confidence": 0.99},
+        {"word": "you", "start_ms": 15950, "end_ms": 16100, "confidence": 0.99},
+        {"word": "with", "start_ms": 16150, "end_ms": 16300, "confidence": 0.99},
+        {"word": "that", "start_ms": 16350, "end_ms": 16550, "confidence": 0.99},
+        {"word": "today.", "start_ms": 16600, "end_ms": 17000, "confidence": 0.98}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_00",
+      "start_ms": 842000,
+      "end_ms": 848000,
+      "text": "Our peak rate is 28.6 cents per kilowatt hour for this plan.",
+      "words": [
+        {"word": "Our", "start_ms": 842000, "end_ms": 842250, "confidence": 0.98},
+        {"word": "peak", "start_ms": 842300, "end_ms": 842600, "confidence": 0.99},
+        {"word": "rate", "start_ms": 842650, "end_ms": 842950, "confidence": 0.99},
+        {"word": "is", "start_ms": 843000, "end_ms": 843200, "confidence": 0.99},
+        {"word": "28.6", "start_ms": 843300, "end_ms": 844100, "confidence": 0.97},
+        {"word": "cents", "start_ms": 844200, "end_ms": 844600, "confidence": 0.99},
+        {"word": "per", "start_ms": 844700, "end_ms": 844900, "confidence": 0.99},
+        {"word": "kilowatt", "start_ms": 845000, "end_ms": 845500, "confidence": 0.98},
+        {"word": "hour", "start_ms": 845600, "end_ms": 845950, "confidence": 0.99},
+        {"word": "for", "start_ms": 846050, "end_ms": 846250, "confidence": 0.97},
+        {"word": "this", "start_ms": 846350, "end_ms": 846600, "confidence": 0.99},
+        {"word": "plan.", "start_ms": 846700, "end_ms": 847200, "confidence": 0.99}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_01",
+      "start_ms": 848500,
+      "end_ms": 851500,
+      "text": "Okay, that sounds like a competitive rate.",
+      "words": [
+        {"word": "Okay,", "start_ms": 848500, "end_ms": 848900, "confidence": 0.99},
+        {"word": "that", "start_ms": 849000, "end_ms": 849250, "confidence": 0.98},
+        {"word": "sounds", "start_ms": 849300, "end_ms": 849650, "confidence": 0.99},
+        {"word": "like", "start_ms": 849700, "end_ms": 849900, "confidence": 0.99},
+        {"word": "a", "start_ms": 849950, "end_ms": 850050, "confidence": 0.98},
+        {"word": "competitive", "start_ms": 850100, "end_ms": 850800, "confidence": 0.98},
+        {"word": "rate.", "start_ms": 850850, "end_ms": 851200, "confidence": 0.99}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_00",
+      "start_ms": 1105000,
+      "end_ms": 1110000,
+      "text": "Let me place you on a brief hold while I confirm the NMI meter details.",
+      "words": [
+        {"word": "Let", "start_ms": 1105000, "end_ms": 1105250, "confidence": 0.99},
+        {"word": "me", "start_ms": 1105300, "end_ms": 1105500, "confidence": 0.99},
+        {"word": "place", "start_ms": 1105550, "end_ms": 1105900, "confidence": 0.99},
+        {"word": "you", "start_ms": 1105950, "end_ms": 1106100, "confidence": 0.99},
+        {"word": "on", "start_ms": 1106150, "end_ms": 1106300, "confidence": 0.98},
+        {"word": "a", "start_ms": 1106350, "end_ms": 1106450, "confidence": 0.98},
+        {"word": "brief", "start_ms": 1106500, "end_ms": 1106850, "confidence": 0.99},
+        {"word": "hold", "start_ms": 1106900, "end_ms": 1107250, "confidence": 0.99}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_00",
+      "start_ms": 1157000,
+      "end_ms": 1162000,
+      "text": "Thank you for your patience on hold, Jane. The NMI is confirmed.",
+      "words": [
+        {"word": "Thank", "start_ms": 1157000, "end_ms": 1157300, "confidence": 0.99},
+        {"word": "you", "start_ms": 1157350, "end_ms": 1157500, "confidence": 0.99},
+        {"word": "for", "start_ms": 1157550, "end_ms": 1157700, "confidence": 0.98},
+        {"word": "your", "start_ms": 1157750, "end_ms": 1157950, "confidence": 0.99},
+        {"word": "patience", "start_ms": 1158000, "end_ms": 1158500, "confidence": 0.99},
+        {"word": "on", "start_ms": 1158550, "end_ms": 1158700, "confidence": 0.98},
+        {"word": "hold,", "start_ms": 1158750, "end_ms": 1159150, "confidence": 0.99},
+        {"word": "Jane.", "start_ms": 1159200, "end_ms": 1159600, "confidence": 0.99}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_00",
+      "start_ms": 1330000,
+      "end_ms": 1336000,
+      "text": "I will send your welcome pack and energy contract to john.smith@gmial.com.",
+      "words": [
+        {"word": "I", "start_ms": 1330000, "end_ms": 1330150, "confidence": 0.99},
+        {"word": "will", "start_ms": 1330200, "end_ms": 1330450, "confidence": 0.99},
+        {"word": "send", "start_ms": 1330500, "end_ms": 1330800, "confidence": 0.99},
+        {"word": "your", "start_ms": 1330850, "end_ms": 1331050, "confidence": 0.99},
+        {"word": "welcome", "start_ms": 1331100, "end_ms": 1331500, "confidence": 0.99},
+        {"word": "pack", "start_ms": 1331550, "end_ms": 1331850, "confidence": 0.98},
+        {"word": "and", "start_ms": 1331900, "end_ms": 1332050, "confidence": 0.98},
+        {"word": "energy", "start_ms": 1332100, "end_ms": 1332450, "confidence": 0.99},
+        {"word": "contract", "start_ms": 1332500, "end_ms": 1333000, "confidence": 0.99},
+        {"word": "to", "start_ms": 1333050, "end_ms": 1333200, "confidence": 0.98},
+        {"word": "john.smith@gmial.com.", "start_ms": 1333300, "end_ms": 1334800, "confidence": 0.95}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_00",
+      "start_ms": 1500000,
+      "end_ms": 1520000,
+      "text": "Please note you have a 10 business day cooling off period where you can cancel without penalty. You can also contact the Energy and Water Ombudsman if you have unresolved issues. Do you provide your explicit informed consent to proceed with this transfer?",
+      "words": [
+        {"word": "Please", "start_ms": 1500000, "end_ms": 1500350, "confidence": 0.99},
+        {"word": "note", "start_ms": 1500400, "end_ms": 1500650, "confidence": 0.99},
+        {"word": "you", "start_ms": 1500700, "end_ms": 1500850, "confidence": 0.99},
+        {"word": "have", "start_ms": 1500900, "end_ms": 1501100, "confidence": 0.99},
+        {"word": "a", "start_ms": 1501150, "end_ms": 1501250, "confidence": 0.98},
+        {"word": "10", "start_ms": 1501300, "end_ms": 1501600, "confidence": 0.99},
+        {"word": "business", "start_ms": 1501650, "end_ms": 1502100, "confidence": 0.99},
+        {"word": "day", "start_ms": 1502150, "end_ms": 1502400, "confidence": 0.99},
+        {"word": "cooling", "start_ms": 1502450, "end_ms": 1502800, "confidence": 0.99},
+        {"word": "off", "start_ms": 1502850, "end_ms": 1503050, "confidence": 0.99},
+        {"word": "period", "start_ms": 1503100, "end_ms": 1503500, "confidence": 0.99}
+      ]
+    },
+    {
+      "speaker_label": "SPEAKER_01",
+      "start_ms": 1521000,
+      "end_ms": 1525000,
+      "text": "Yes, I understand and give my explicit informed consent.",
+      "words": [
+        {"word": "Yes,", "start_ms": 1521000, "end_ms": 1521400, "confidence": 0.99},
+        {"word": "I", "start_ms": 1521450, "end_ms": 1521600, "confidence": 0.99},
+        {"word": "understand", "start_ms": 1521650, "end_ms": 1522200, "confidence": 0.99},
+        {"word": "and", "start_ms": 1522250, "end_ms": 1522400, "confidence": 0.98},
+        {"word": "give", "start_ms": 1522450, "end_ms": 1522700, "confidence": 0.99},
+        {"word": "my", "start_ms": 1522750, "end_ms": 1522900, "confidence": 0.99},
+        {"word": "explicit", "start_ms": 1522950, "end_ms": 1523450, "confidence": 0.99},
+        {"word": "informed", "start_ms": 1523500, "end_ms": 1523950, "confidence": 0.99},
+        {"word": "consent.", "start_ms": 1524000, "end_ms": 1524600, "confidence": 0.99}
+      ]
+    }
+  ]
+}
