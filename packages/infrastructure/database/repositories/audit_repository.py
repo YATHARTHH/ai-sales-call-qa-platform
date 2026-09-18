@@ -32,9 +32,7 @@ class SqlAlchemyAuditRepository(AuditRepositoryPort):
         self._session.add(model)
         await self._session.flush()
 
-    async def get_events_for_entity(
-        self, entity_type: str, entity_id: str
-    ) -> list[AuditEvent]:
+    async def get_events_for_entity(self, entity_type: str, entity_id: str) -> list[AuditEvent]:
         stmt = (
             select(AuditEventModel)
             .where(

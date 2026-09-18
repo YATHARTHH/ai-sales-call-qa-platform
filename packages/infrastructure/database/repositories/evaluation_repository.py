@@ -51,8 +51,14 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
             seed=run.provenance.seed,
             latency_ms=int(run.execution_metadata.latency_ms) if run.execution_metadata else None,
             prompt_tokens=run.execution_metadata.input_tokens if run.execution_metadata else None,
-            completion_tokens=run.execution_metadata.output_tokens if run.execution_metadata else None,
-            total_tokens=(run.execution_metadata.input_tokens + run.execution_metadata.output_tokens) if run.execution_metadata else None,
+            completion_tokens=run.execution_metadata.output_tokens
+            if run.execution_metadata
+            else None,
+            total_tokens=(
+                run.execution_metadata.input_tokens + run.execution_metadata.output_tokens
+            )
+            if run.execution_metadata
+            else None,
             cost_usd=run.execution_metadata.estimated_cost_usd if run.execution_metadata else None,
             created_at=run.created_at,
         )
@@ -118,8 +124,12 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
             select(EvaluationRunModel)
             .where(EvaluationRunModel.sale_id == sale_id)
             .options(
-                selectinload(EvaluationRunModel.results).selectinload(EvaluationResultModel.evidence),
-                selectinload(EvaluationRunModel.gate_decision).selectinload(GateDecisionModel.human_reviews),
+                selectinload(EvaluationRunModel.results).selectinload(
+                    EvaluationResultModel.evidence
+                ),
+                selectinload(EvaluationRunModel.gate_decision).selectinload(
+                    GateDecisionModel.human_reviews
+                ),
             )
             .order_by(EvaluationRunModel.created_at.desc())
         )

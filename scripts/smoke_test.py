@@ -25,10 +25,12 @@ from packages.infrastructure.database.models.jobs import PipelineJobModel
 from packages.infrastructure.database.session import async_session_factory, engine
 
 # Support standalone testing via local sqlite or configured postgres
-if '--sqlite' in sys.argv or os.getenv('SMOKE_DB_URL'):
-    db_target = os.getenv('SMOKE_DB_URL', 'sqlite+aiosqlite:///smoke_test.db')
+if "--sqlite" in sys.argv or os.getenv("SMOKE_DB_URL"):
+    db_target = os.getenv("SMOKE_DB_URL", "sqlite+aiosqlite:///smoke_test.db")
     engine = create_async_engine(db_target, echo=False)
-    async_session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+    async_session_factory = async_sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False
+    )
 
 from packages.infrastructure.queue.redis_queue import RedisQueueAdapter
 from packages.observability.logging import configure_logging, get_logger
@@ -79,7 +81,9 @@ async def run_smoke_test() -> bool:
             )
             session.add(artifact_model)
             await session.commit()
-            logger.info("artifact_persisted", artifact_id=artifact.id, content_hash=artifact.content_hash)
+            logger.info(
+                "artifact_persisted", artifact_id=artifact.id, content_hash=artifact.content_hash
+            )
         else:
             artifact = Artifact(
                 id=existing.id,
@@ -116,7 +120,9 @@ async def run_smoke_test() -> bool:
         )
         session.add(job_model)
         await session.commit()
-        logger.info("durable_job_created", job_id=job.id, status=job.status.value, key=job.idempotency_key)
+        logger.info(
+            "durable_job_created", job_id=job.id, status=job.status.value, key=job.idempotency_key
+        )
 
     # 4. Dispatch job to Redis queue
     queue_adapter = RedisQueueAdapter()
@@ -125,13 +131,19 @@ async def run_smoke_test() -> bool:
     # Check if Redis is running, or simulate local worker dispatch
     redis_available = await queue_adapter.check_connection()
     if redis_available:
-        await queue_adapter.enqueue("smoke_job", {
-            "job_id": job.id,
-            "correlation_id": correlation_id,
-        })
+        await queue_adapter.enqueue(
+            "smoke_job",
+            {
+                "job_id": job.id,
+                "correlation_id": correlation_id,
+            },
+        )
         logger.info("job_dispatched_to_redis", queue="smoke_job", correlation_id=correlation_id)
     else:
-        logger.warning("redis_offline_simulating_worker", reason="Proceeding with direct in-process worker task")
+        logger.warning(
+            "redis_offline_simulating_worker",
+            reason="Proceeding with direct in-process worker task",
+        )
 
     # 5. Execute worker task
     worker_id = f"worker-test-{uuid.uuid4().hex[:6]}"
@@ -149,9 +161,13 @@ async def run_smoke_test() -> bool:
         final_job = result.scalar_one_or_none()
 
         assert final_job is not None, "Job record missing in DB!"
-        assert final_job.status == JobStatus.COMPLETED.value, f"Expected COMPLETED, got {final_job.status}"
+        assert final_job.status == JobStatus.COMPLETED.value, (
+            f"Expected COMPLETED, got {final_job.status}"
+        )
         assert final_job.completed_at is not None, "completed_at timestamp was not updated!"
-        assert final_job.worker_id == worker_id, f"Worker ID mismatch! {final_job.worker_id} vs {worker_id}"
+        assert final_job.worker_id == worker_id, (
+            f"Worker ID mismatch! {final_job.worker_id} vs {worker_id}"
+        )
 
     logger.info(
         "=== Smoke Test PASSED! Full Control Path Verified ===",

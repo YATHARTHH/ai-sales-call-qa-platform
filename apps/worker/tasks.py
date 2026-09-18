@@ -17,9 +17,13 @@ from packages.observability.metrics import (
 logger = get_logger("worker.tasks")
 
 
-async def execute_smoke_job(job_id: str, worker_id: str, correlation_id: str, session_factory=None) -> None:
+async def execute_smoke_job(
+    job_id: str, worker_id: str, correlation_id: str, session_factory=None
+) -> None:
     """Execute smoke test job verifying durable state persistence and metrics."""
-    logger.info("smoke_job_started", job_id=job_id, worker_id=worker_id, correlation_id=correlation_id)
+    logger.info(
+        "smoke_job_started", job_id=job_id, worker_id=worker_id, correlation_id=correlation_id
+    )
     start_time = datetime.now(UTC)
 
     factory = session_factory or async_session_factory
@@ -101,7 +105,9 @@ async def recover_stale_jobs(policy: RetryPolicy | None = None, session_factory=
                 job_model.retry_count += 1
                 job_model.status = JobStatus.QUEUED.value
                 job_model.last_error = "Worker lease expired; job reclaimed by recovery routine."
-                logger.info("stale_job_requeued", job_id=job_model.id, retry_count=job_model.retry_count)
+                logger.info(
+                    "stale_job_requeued", job_id=job_model.id, retry_count=job_model.retry_count
+                )
             else:
                 job_model.status = JobStatus.DEAD_LETTER.value
                 job_model.last_error = "Worker lease expired and max retries exceeded."

@@ -78,7 +78,12 @@ async def seed(database_url: str) -> None:
 
         # 3. Agents
         print("Seeding Agents...")
-        tl = Agent(id="agent-tl-001", staff_id="TL_001", name="Michael Chang", email="m.chang@comparator.com.au")
+        tl = Agent(
+            id="agent-tl-001",
+            staff_id="TL_001",
+            name="Michael Chang",
+            email="m.chang@comparator.com.au",
+        )
         agent = Agent(
             id="agent-001",
             staff_id="AGT_001",
@@ -148,7 +153,9 @@ async def seed(database_url: str) -> None:
                 "Explicit Informed Consent (EIC)",
                 CheckType.VERBATIM,
                 True,
-                {"verbatim_phrase": "Do you explicitly consent to switch your electricity to Origin Energy?"},
+                {
+                    "verbatim_phrase": "Do you explicitly consent to switch your electricity to Origin Energy?"
+                },
             ),
             (
                 "chk-rates",
@@ -196,7 +203,9 @@ async def seed(database_url: str) -> None:
                 "Call Recording & Identity Disclosure",
                 CheckType.VERBATIM,
                 True,
-                {"verbatim_phrase": "This call is being recorded for training and quality purposes"},
+                {
+                    "verbatim_phrase": "This call is being recorded for training and quality purposes"
+                },
             ),
         ]
 
@@ -420,7 +429,9 @@ async def seed(database_url: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Seed SalesCall QA Reference Data")
-    parser.add_argument("--sqlite", action="store_true", help="Use local SQLite database instead of PostgreSQL")
+    parser.add_argument(
+        "--sqlite", action="store_true", help="Use local SQLite database instead of PostgreSQL"
+    )
     parser.add_argument("--db-url", type=str, default="", help="Explicit database URL")
     args = parser.parse_args()
 

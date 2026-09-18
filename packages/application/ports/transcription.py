@@ -8,9 +8,7 @@ class TranscriptionPort(ABC):
     """Abstract interface for ASR and speaker diarization providers."""
 
     @abstractmethod
-    async def transcribe(
-        self, audio_data: bytes, mime_type: str
-    ) -> dict[str, Any]:
+    async def transcribe(self, audio_data: bytes, mime_type: str) -> dict[str, Any]:
         """Convert speech audio into a timestamped transcript."""
 
     @abstractmethod

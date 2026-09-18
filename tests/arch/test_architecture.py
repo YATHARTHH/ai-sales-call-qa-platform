@@ -40,8 +40,7 @@ def test_domain_layer_has_zero_infrastructure_dependencies():
         imports = get_imported_modules(py_file)
         violations = imports.intersection(forbidden)
         assert not violations, (
-            f"Architectural boundary violation in {py_file}: "
-            f"Domain must not import {violations}"
+            f"Architectural boundary violation in {py_file}: Domain must not import {violations}"
         )
 
 

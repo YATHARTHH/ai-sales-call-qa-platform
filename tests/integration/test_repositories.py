@@ -91,7 +91,9 @@ async def test_transcript_repository_lifecycle(test_db_session):
     ret = Retailer(id="ret-tr", code="RET_TR", name="Test Retailer")
     camp = Campaign(id="camp-tr", code="CAMP_TR", name="Test Campaign")
     agt = Agent(id="agt-tr", staff_id="STF_TR", name="Test Agent", email="t@test.com")
-    lead = Lead(id="lead-tr", customer_name="Jane Doe", customer_email="jane@test.com", phone="0400000000")
+    lead = Lead(
+        id="lead-tr", customer_name="Jane Doe", customer_email="jane@test.com", phone="0400000000"
+    )
     sale = Sale.create("lead-tr", "ret-tr", "camp-tr", "agt-tr", now, {}, sale_id="sale-tr")
     await sale_repo.save_retailer(ret)
     await sale_repo.save_campaign(camp)
@@ -254,7 +256,12 @@ async def test_evaluation_repository_and_full_lineage(test_db_session):
     camp = Campaign(id="camp-ev", code="CAMP_EV", name="Eval Campaign")
     agt = Agent(id="agt-ev", staff_id="STF_EV", name="Eval Agent", email="ev@test.com")
     tl = Agent(id="tl-ev", staff_id="STF_TL", name="Team Lead", email="tl@test.com")
-    lead = Lead(id="lead-ev", customer_name="Alex Taylor", customer_email="alex@test.com", phone="0411111111")
+    lead = Lead(
+        id="lead-ev",
+        customer_name="Alex Taylor",
+        customer_email="alex@test.com",
+        phone="0411111111",
+    )
     sale = Sale.create("lead-ev", "ret-ev", "camp-ev", "agt-ev", now, {}, sale_id="sale-ev")
     await sale_repo.save_retailer(ret)
     await sale_repo.save_campaign(camp)
@@ -288,7 +295,9 @@ async def test_evaluation_repository_and_full_lineage(test_db_session):
     test_db_session.add(tx_art)
     await test_db_session.flush()
 
-    rec = Recording.create("sale-ev", "art-ev-audio", "CALL_EV_001", 600.0, now, recording_id="rec-ev")
+    rec = Recording.create(
+        "sale-ev", "art-ev-audio", "CALL_EV_001", 600.0, now, recording_id="rec-ev"
+    )
     await tr_repo.save_recording(rec)
 
     tx = Transcript(
@@ -302,13 +311,29 @@ async def test_evaluation_repository_and_full_lineage(test_db_session):
         diarization_provider="PYANNOTE",
         diarization_version="v3",
     )
-    seg = TranscriptSegment.create("tx-ev", 1, SpeakerType.AGENT, 1000, 5000, "Your peak rate is 28.6 cents.", segment_id="seg-ev-1")
+    seg = TranscriptSegment.create(
+        "tx-ev",
+        1,
+        SpeakerType.AGENT,
+        1000,
+        5000,
+        "Your peak rate is 28.6 cents.",
+        segment_id="seg-ev-1",
+    )
     await tr_repo.save_transcript(tx, [seg])
 
     # 3. Check definition & version
-    chk = CheckDefinition(id="chk-ev-rates", check_code="CHK_RATES", name="Rate Verification", check_type=CheckType.FACTUAL_MATCH, is_critical=True)
+    chk = CheckDefinition(
+        id="chk-ev-rates",
+        check_code="CHK_RATES",
+        name="Rate Verification",
+        check_type=CheckType.FACTUAL_MATCH,
+        is_critical=True,
+    )
     await check_repo.save_check_definition(chk)
-    chk_v = CheckVersion.create("chk-ev-rates", "ret-ev", 1, now - timedelta(days=10), None, {}, version_id="chk-v-ev")
+    chk_v = CheckVersion.create(
+        "chk-ev-rates", "ret-ev", 1, now - timedelta(days=10), None, {}, version_id="chk-v-ev"
+    )
     await check_repo.save_check_version(chk_v)
 
     # 4. Evaluation Run + Results + Grounded Evidence
@@ -391,7 +416,10 @@ async def test_evaluation_repository_and_full_lineage(test_db_session):
     assert lineage["execution_metadata"]["latency_ms"] == 1200
     assert len(lineage["results"]) == 1
     assert lineage["results"][0]["result"] == "FAIL"
-    assert lineage["results"][0]["evidence"][0]["transcript_excerpt"] == "Your peak rate is 28.6 cents."
+    assert (
+        lineage["results"][0]["evidence"][0]["transcript_excerpt"]
+        == "Your peak rate is 28.6 cents."
+    )
     assert lineage["gate_decision"]["status"] == "HELD"
     assert len(lineage["human_reviews"]) == 1
     assert lineage["human_reviews"][0]["action"] == "CONFIRM_HOLD"
@@ -439,7 +467,9 @@ async def test_database_constraints_enforced(test_db_session):
     ret = Retailer(id="ret-ck", code="RET_CK", name="CK Ret")
     camp = Campaign(id="camp-ck", code="CAMP_CK", name="CK Camp")
     agt = Agent(id="agt-ck", staff_id="STF_CK", name="CK Agent", email="ck@ck.com")
-    lead = Lead(id="lead-ck", customer_name="CK Lead", customer_email="ck@ck.com", phone="0400000001")
+    lead = Lead(
+        id="lead-ck", customer_name="CK Lead", customer_email="ck@ck.com", phone="0400000001"
+    )
     sale = Sale.create("lead-ck", "ret-ck", "camp-ck", "agt-ck", now, {}, sale_id="sale-ck")
     await sale_repo.save_retailer(ret)
     await sale_repo.save_campaign(camp)
@@ -461,11 +491,15 @@ async def test_database_constraints_enforced(test_db_session):
     await test_db_session.flush()
 
     tr_repo = SqlAlchemyTranscriptRepository(test_db_session)
-    r1 = Recording.create("sale-ck", "art-ck-1", "DIALLER_UNIQUE_KEY", 100.0, now, recording_id="rec-ck-1")
+    r1 = Recording.create(
+        "sale-ck", "art-ck-1", "DIALLER_UNIQUE_KEY", 100.0, now, recording_id="rec-ck-1"
+    )
     await tr_repo.save_recording(r1)
 
     # Second insert with identical dialler_call_id must violate unique constraint
-    r2 = Recording.create("sale-ck", "art-ck-1", "DIALLER_UNIQUE_KEY", 120.0, now, recording_id="rec-ck-2")
+    r2 = Recording.create(
+        "sale-ck", "art-ck-1", "DIALLER_UNIQUE_KEY", 120.0, now, recording_id="rec-ck-2"
+    )
     with pytest.raises(IntegrityError):
         await tr_repo.save_recording(r2)
     await test_db_session.rollback()

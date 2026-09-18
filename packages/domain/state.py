@@ -42,7 +42,11 @@ class StateTransitionPolicy:
         PipelineStatus.TRANSCRIBED: {PipelineStatus.EVALUATING, PipelineStatus.FAILED},
         PipelineStatus.EVALUATING: {PipelineStatus.EVALUATED, PipelineStatus.FAILED},
         # Recovery/Retry allows FAILED to re-enter INGESTING or TRANSCRIBING
-        PipelineStatus.FAILED: {PipelineStatus.INGESTING, PipelineStatus.TRANSCRIBING, PipelineStatus.EVALUATING},
+        PipelineStatus.FAILED: {
+            PipelineStatus.INGESTING,
+            PipelineStatus.TRANSCRIBING,
+            PipelineStatus.EVALUATING,
+        },
         PipelineStatus.EVALUATED: set(),  # Terminal pipeline state
     }
 
@@ -69,29 +73,21 @@ class StateTransitionPolicy:
     }
 
     @classmethod
-    def validate_pipeline_transition(
-        cls, current: PipelineStatus, target: PipelineStatus
-    ) -> None:
+    def validate_pipeline_transition(cls, current: PipelineStatus, target: PipelineStatus) -> None:
         """Validate if the pipeline transition is allowed."""
         if current == target:
             return
 
         allowed = cls.PIPELINE_TRANSITIONS.get(current, set())
         if target not in allowed:
-            raise StateTransitionError(
-                current.value, target.value, context="PipelineStatus"
-            )
+            raise StateTransitionError(current.value, target.value, context="PipelineStatus")
 
     @classmethod
-    def validate_gate_transition(
-        cls, current: GateStatus, target: GateStatus
-    ) -> None:
+    def validate_gate_transition(cls, current: GateStatus, target: GateStatus) -> None:
         """Validate if the QA gate transition is allowed."""
         if current == target:
             return
 
         allowed = cls.GATE_TRANSITIONS.get(current, set())
         if target not in allowed:
-            raise StateTransitionError(
-                current.value, target.value, context="GateStatus"
-            )
+            raise StateTransitionError(current.value, target.value, context="GateStatus")

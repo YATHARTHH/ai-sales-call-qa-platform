@@ -19,13 +19,13 @@ class JobStatus(StrEnum):
 class FailureCategory(StrEnum):
     """Categorization of failure types to determine retry behavior."""
 
-    TRANSIENT = "TRANSIENT"                  # Network blip, DB lock timeout (RETRY)
-    RATE_LIMITED = "RATE_LIMITED"            # HTTP 429 backoff (RETRY)
+    TRANSIENT = "TRANSIENT"  # Network blip, DB lock timeout (RETRY)
+    RATE_LIMITED = "RATE_LIMITED"  # HTTP 429 backoff (RETRY)
     PROVIDER_UNAVAILABLE = "PROVIDER_UNAVAILABLE"  # HTTP 503 / downstream restart (RETRY)
-    PERMANENT = "PERMANENT"                  # Malformed file, unsupported codec (NO RETRY)
-    INVALID_INPUT = "INVALID_INPUT"          # Schema validation failure (NO RETRY)
-    POLICY_FAILURE = "POLICY_FAILURE"        # Business rule violation (NO RETRY)
-    UNKNOWN = "UNKNOWN"                      # Unclassified (LIMITED RETRY)
+    PERMANENT = "PERMANENT"  # Malformed file, unsupported codec (NO RETRY)
+    INVALID_INPUT = "INVALID_INPUT"  # Schema validation failure (NO RETRY)
+    POLICY_FAILURE = "POLICY_FAILURE"  # Business rule violation (NO RETRY)
+    UNKNOWN = "UNKNOWN"  # Unclassified (LIMITED RETRY)
 
 
 @dataclass
@@ -57,7 +57,7 @@ class RetryPolicy:
 
     def calculate_backoff(self, retry_count: int) -> float:
         """Calculate exponential backoff delay in seconds."""
-        return self.base_backoff_seconds * (self.backoff_factor ** retry_count)
+        return self.base_backoff_seconds * (self.backoff_factor**retry_count)
 
 
 @dataclass

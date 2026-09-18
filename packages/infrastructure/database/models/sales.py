@@ -68,12 +68,22 @@ class SaleModel(Base):
     __tablename__ = "sales"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    lead_id: Mapped[str] = mapped_column(String(64), ForeignKey("leads.id"), nullable=False, index=True)
-    retailer_id: Mapped[str] = mapped_column(String(64), ForeignKey("retailers.id"), nullable=False, index=True)
-    campaign_id: Mapped[str] = mapped_column(String(64), ForeignKey("campaigns.id"), nullable=False, index=True)
-    agent_id: Mapped[str] = mapped_column(String(64), ForeignKey("agents.id"), nullable=False, index=True)
+    lead_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("leads.id"), nullable=False, index=True
+    )
+    retailer_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("retailers.id"), nullable=False, index=True
+    )
+    campaign_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("campaigns.id"), nullable=False, index=True
+    )
+    agent_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("agents.id"), nullable=False, index=True
+    )
     sale_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String(32), default="PENDING_QA", nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(32), default="PENDING_QA", nullable=False, index=True
+    )
     product_details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
@@ -84,6 +94,4 @@ class SaleModel(Base):
     campaign: Mapped[CampaignModel] = relationship()
     agent: Mapped[AgentModel] = relationship()
 
-    __table_args__ = (
-        Index("ix_sales_retailer_date", "retailer_id", "sale_date"),
-    )
+    __table_args__ = (Index("ix_sales_retailer_date", "retailer_id", "sale_date"),)

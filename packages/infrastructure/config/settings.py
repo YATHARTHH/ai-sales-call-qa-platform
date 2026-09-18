@@ -53,23 +53,24 @@ class Settings(BaseSettings):
     minio_bucket_artifacts: str = Field(
         default="sales-call-artifacts", alias="MINIO_BUCKET_ARTIFACTS"
     )
+    minio_public_endpoint: str = Field(default="localhost:9000", alias="MINIO_PUBLIC_ENDPOINT")
+    max_audio_upload_size_bytes: int = Field(
+        default=524_288_000, alias="MAX_AUDIO_UPLOAD_SIZE_BYTES"
+    )
+    webhook_secret: str = Field(default="dev-dialler-webhook-secret", alias="WEBHOOK_SECRET")
 
     # Background Workers & Leases
     worker_concurrency: int = Field(default=4, alias="WORKER_CONCURRENCY")
     worker_heartbeat_interval_seconds: int = Field(
         default=15, alias="WORKER_HEARTBEAT_INTERVAL_SECONDS"
     )
-    worker_lease_duration_seconds: int = Field(
-        default=60, alias="WORKER_LEASE_DURATION_SECONDS"
-    )
+    worker_lease_duration_seconds: int = Field(default=60, alias="WORKER_LEASE_DURATION_SECONDS")
     max_job_retries: int = Field(default=3, alias="MAX_JOB_RETRIES")
 
     # Observability
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_format: str = Field(default="json", alias="LOG_FORMAT")
-    prometheus_metrics_enabled: bool = Field(
-        default=True, alias="PROMETHEUS_METRICS_ENABLED"
-    )
+    prometheus_metrics_enabled: bool = Field(default=True, alias="PROMETHEUS_METRICS_ENABLED")
 
     @property
     def cors_origins_list(self) -> list[str]:

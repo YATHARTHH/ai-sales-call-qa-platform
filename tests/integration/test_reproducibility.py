@@ -77,8 +77,15 @@ async def test_evaluation_lineage_reproducibility_contract(test_db_session):
     ret = Retailer(id="ret-rep", code="RET_REPRO", name="Reproducibility Energy")
     camp = Campaign(id="camp-rep", code="CAMP_REP", name="Repro Campaign")
     agt = Agent(id="agt-rep", staff_id="STF_REP", name="Agent Repro", email="rep@test.com")
-    lead = Lead(id="lead-rep", customer_name="Robert Repro", customer_email="robert@test.com", phone="0400111222")
-    sale = Sale.create("lead-rep", "ret-rep", "camp-rep", "agt-rep", call_date, {}, sale_id="sale-rep-1")
+    lead = Lead(
+        id="lead-rep",
+        customer_name="Robert Repro",
+        customer_email="robert@test.com",
+        phone="0400111222",
+    )
+    sale = Sale.create(
+        "lead-rep", "ret-rep", "camp-rep", "agt-rep", call_date, {}, sale_id="sale-rep-1"
+    )
     await sale_repo.save_retailer(ret)
     await sale_repo.save_campaign(camp)
     await sale_repo.save_agent(agt)
@@ -127,7 +134,9 @@ async def test_evaluation_lineage_reproducibility_contract(test_db_session):
     await test_db_session.flush()
 
     # 3. Recording & Transcript
-    rec = Recording.create("sale-rep-1", audio_art.id, "CALL_REP_999", 1800.0, call_date, recording_id="rec-rep-1")
+    rec = Recording.create(
+        "sale-rep-1", audio_art.id, "CALL_REP_999", 1800.0, call_date, recording_id="rec-rep-1"
+    )
     await tr_repo.save_recording(rec)
 
     tx = Transcript(
@@ -141,13 +150,29 @@ async def test_evaluation_lineage_reproducibility_contract(test_db_session):
         diarization_provider="PYANNOTE",
         diarization_version="3.1",
     )
-    seg1 = TranscriptSegment.create("tx-rep-1", 1, SpeakerType.AGENT, 0, 3000, "Welcome to Origin.", segment_id="seg-rep-1")
+    seg1 = TranscriptSegment.create(
+        "tx-rep-1", 1, SpeakerType.AGENT, 0, 3000, "Welcome to Origin.", segment_id="seg-rep-1"
+    )
     await tr_repo.save_transcript(tx, [seg1])
 
     # 4. Check Definition & Active Version
-    chk = CheckDefinition(id="chk-rep-rates", check_code="CHK_RATES", name="Rates", check_type=CheckType.FACTUAL_MATCH, is_critical=True)
+    chk = CheckDefinition(
+        id="chk-rep-rates",
+        check_code="CHK_RATES",
+        name="Rates",
+        check_type=CheckType.FACTUAL_MATCH,
+        is_critical=True,
+    )
     await chk_repo.save_check_definition(chk)
-    chk_v = CheckVersion.create("chk-rep-rates", "ret-rep", 1, call_date - timedelta(days=1), None, {"peak_rate": 31.9}, version_id="chk-v-rep-1")
+    chk_v = CheckVersion.create(
+        "chk-rep-rates",
+        "ret-rep",
+        1,
+        call_date - timedelta(days=1),
+        None,
+        {"peak_rate": 31.9},
+        version_id="chk-v-rep-1",
+    )
     await chk_repo.save_check_version(chk_v)
 
     # 5. Fixed Provenance & Execution Configuration
@@ -191,11 +216,23 @@ async def test_evaluation_lineage_reproducibility_contract(test_db_session):
         execution_metadata=execution_meta,
         run_id="run-rep-1",
     )
-    result = EvaluationResult.create("run-rep-1", chk_v.id, EvaluationResultStatus.PASS, 0.99, 100.0, result_id="res-rep-1")
-    evidence = Evidence.create("res-rep-1", "seg-rep-1", 0, 3000, "31.9c", "31.9c", "quoted 31.9c", evidence_id="ev-rep-1")
+    result = EvaluationResult.create(
+        "run-rep-1", chk_v.id, EvaluationResultStatus.PASS, 0.99, 100.0, result_id="res-rep-1"
+    )
+    evidence = Evidence.create(
+        "res-rep-1", "seg-rep-1", 0, 3000, "31.9c", "31.9c", "quoted 31.9c", evidence_id="ev-rep-1"
+    )
     await eval_repo.save_evaluation_run(eval_run, [result], [evidence])
 
-    gate = GateDecision.create("sale-rep-1", "run-rep-1", GateStatus.PASSED, "policy-2026.09", "ALL_CRITICAL_CHECKS_PASSED", True, decision_id="gate-rep-1")
+    gate = GateDecision.create(
+        "sale-rep-1",
+        "run-rep-1",
+        GateStatus.PASSED,
+        "policy-2026.09",
+        "ALL_CRITICAL_CHECKS_PASSED",
+        True,
+        decision_id="gate-rep-1",
+    )
     await eval_repo.save_gate_decision(gate)
 
     # 6. Retrieve Lineage and Recompute Signature

@@ -52,9 +52,7 @@ class SqlAlchemyCheckLibraryRepository(CheckLibraryRepositoryPort):
         await self._session.merge(model)
         await self._session.flush()
 
-    async def get_check_versions(
-        self, retailer_id: str, check_code: str
-    ) -> list[CheckVersion]:
+    async def get_check_versions(self, retailer_id: str, check_code: str) -> list[CheckVersion]:
         stmt = (
             select(CheckVersionModel)
             .join(CheckDefinitionModel, CheckVersionModel.check_id == CheckDefinitionModel.id)

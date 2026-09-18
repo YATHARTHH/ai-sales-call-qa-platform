@@ -26,6 +26,4 @@ class ArtifactModel(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
-    __table_args__ = (
-        Index("ix_artifacts_lead_created", "lead_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_artifacts_lead_created", "lead_id", "created_at"),)

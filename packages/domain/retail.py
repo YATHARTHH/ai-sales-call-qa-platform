@@ -89,7 +89,9 @@ class EnergyProductDetails:
                 raise DomainError(f"Invalid Australian NMI format: {self.nmi}", code="INVALID_NMI")
         if self.fuel_type in (FuelType.GAS, FuelType.DUAL):
             if not self.mirn or not re.match(r"^[A-Za-z0-9]{10,11}$", self.mirn):
-                raise DomainError(f"Invalid Australian MIRN format: {self.mirn}", code="INVALID_MIRN")
+                raise DomainError(
+                    f"Invalid Australian MIRN format: {self.mirn}", code="INVALID_MIRN"
+                )
         if self.tariff_peak_c_kwh <= 0:
             raise DomainError("Tariff peak rate must be positive", code="INVALID_RATE")
 

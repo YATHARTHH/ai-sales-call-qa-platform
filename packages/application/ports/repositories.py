@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any
 
+from packages.domain.artifacts import Artifact
 from packages.domain.audit import AuditEvent
 from packages.domain.check_library import CheckDefinition, CheckVersion
 from packages.domain.evaluation import (
@@ -13,6 +14,7 @@ from packages.domain.evaluation import (
     GateDecision,
     HumanReview,
 )
+from packages.domain.jobs import PipelineJob
 from packages.domain.retail import Agent, Campaign, Lead, Retailer, Sale
 from packages.domain.transcript import Recording, Transcript, TranscriptSegment
 
@@ -65,6 +67,14 @@ class TranscriptRepositoryPort(ABC):
         """Fetch recording metadata."""
 
     @abstractmethod
+    async def get_recording_by_dialler_id(self, dialler_call_id: str) -> Recording | None:
+        """Fetch recording metadata by dialler call identifier."""
+
+    @abstractmethod
+    async def save_recording_idempotent(self, recording: Recording) -> tuple[Recording, bool]:
+        """Persist recording, handling dialler_call_id uniqueness conflicts atomically."""
+
+    @abstractmethod
     async def save_transcript(
         self, transcript: Transcript, segments: list[TranscriptSegment]
     ) -> None:
@@ -75,10 +85,40 @@ class TranscriptRepositoryPort(ABC):
         """Fetch transcript metadata by ID."""
 
     @abstractmethod
-    async def get_transcript_segments(
-        self, transcript_id: str
-    ) -> list[TranscriptSegment]:
+    async def get_transcript_segments(self, transcript_id: str) -> list[TranscriptSegment]:
         """Fetch all ordered segments for a transcript."""
+
+
+class ArtifactRepositoryPort(ABC):
+    """Repository interface for immutable content-hashed audio and derived artifacts."""
+
+    @abstractmethod
+    async def get_by_id(self, artifact_id: str) -> Artifact | None:
+        """Fetch artifact by primary identifier."""
+
+    @abstractmethod
+    async def get_by_content_hash(self, content_hash: str) -> Artifact | None:
+        """Fetch artifact by SHA-256 content hash."""
+
+    @abstractmethod
+    async def save_artifact_idempotent(self, artifact: Artifact) -> tuple[Artifact, bool]:
+        """Persist artifact, returning existing one on content_hash uniqueness conflict."""
+
+
+class JobRepositoryPort(ABC):
+    """Repository interface for durable background pipeline jobs."""
+
+    @abstractmethod
+    async def get_by_id(self, job_id: str) -> PipelineJob | None:
+        """Fetch job by ID."""
+
+    @abstractmethod
+    async def get_by_idempotency_key(self, idempotency_key: str) -> PipelineJob | None:
+        """Fetch job by idempotency key."""
+
+    @abstractmethod
+    async def save_job_idempotent(self, job: PipelineJob) -> tuple[PipelineJob, bool]:
+        """Persist pipeline job, returning existing one on idempotency_key uniqueness conflict."""
 
 
 class CheckLibraryRepositoryPort(ABC):
@@ -93,9 +133,7 @@ class CheckLibraryRepositoryPort(ABC):
         """Persist a versioned check rule."""
 
     @abstractmethod
-    async def get_check_versions(
-        self, retailer_id: str, check_code: str
-    ) -> list[CheckVersion]:
+    async def get_check_versions(self, retailer_id: str, check_code: str) -> list[CheckVersion]:
         """Fetch all historical versions of a check for a retailer."""
 
     @abstractmethod
@@ -138,7 +176,23 @@ class AuditRepositoryPort(ABC):
         """Append an audit event (INSERT only)."""
 
     @abstractmethod
-    async def get_events_for_entity(
-        self, entity_type: str, entity_id: str
-    ) -> list[AuditEvent]:
+    async def get_events_for_entity(self, entity_type: str, entity_id: str) -> list[AuditEvent]:
         """Retrieve historical audit events for a domain entity."""
+
+
+class UnitOfWorkPort(ABC):
+    """Atomic transactional boundary coordinating repositories."""
+
+    sales: SaleRepositoryPort
+    transcripts: TranscriptRepositoryPort
+    artifacts: ArtifactRepositoryPort
+    jobs: JobRepositoryPort
+    audit: AuditRepositoryPort
+
+    @abstractmethod
+    async def commit(self) -> None:
+        """Commit the active database transaction."""
+
+    @abstractmethod
+    async def rollback(self) -> None:
+        """Rollback the active database transaction."""

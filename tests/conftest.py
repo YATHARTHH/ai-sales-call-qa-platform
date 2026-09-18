@@ -36,7 +36,9 @@ async def test_db_session():
 @pytest.fixture
 async def pg_db_session():
     """Authoritative integration fixture for PostgreSQL when available."""
-    pg_url = os.getenv("PG_TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/salescall_qa")
+    pg_url = os.getenv(
+        "PG_TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/salescall_qa"
+    )
     try:
         engine = create_async_engine(pg_url, echo=False)
         async with engine.connect() as conn:

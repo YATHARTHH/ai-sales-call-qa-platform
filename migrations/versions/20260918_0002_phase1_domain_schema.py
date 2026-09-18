@@ -5,6 +5,7 @@ Revises: 20260918_0001
 Create Date: 2026-09-18 19:30:00.000000
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -162,9 +163,13 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.CheckConstraint("start_ms >= 0 AND end_ms >= start_ms", name="ck_segment_timestamps"),
     )
-    op.create_index("ix_transcript_segments_transcript_id", "transcript_segments", ["transcript_id"])
+    op.create_index(
+        "ix_transcript_segments_transcript_id", "transcript_segments", ["transcript_id"]
+    )
     op.create_index("ix_transcript_segments_start_ms", "transcript_segments", ["start_ms"])
-    op.create_index("ix_segments_transcript_order", "transcript_segments", ["transcript_id", "segment_order"])
+    op.create_index(
+        "ix_segments_transcript_order", "transcript_segments", ["transcript_id", "segment_order"]
+    )
 
     # 9. check_definitions
     op.create_table(
@@ -196,15 +201,24 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["check_id"], ["check_definitions.id"]),
         sa.ForeignKeyConstraint(["retailer_id"], ["retailers.id"]),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("check_id", "retailer_id", "version_number", name="uq_check_retailer_version_number"),
-        sa.CheckConstraint("effective_to IS NULL OR effective_to >= effective_from", name="ck_check_version_effective_dates"),
+        sa.UniqueConstraint(
+            "check_id", "retailer_id", "version_number", name="uq_check_retailer_version_number"
+        ),
+        sa.CheckConstraint(
+            "effective_to IS NULL OR effective_to >= effective_from",
+            name="ck_check_version_effective_dates",
+        ),
         sa.CheckConstraint("version_number > 0", name="ck_check_version_number_positive"),
     )
     op.create_index("ix_check_versions_check_id", "check_versions", ["check_id"])
     op.create_index("ix_check_versions_retailer_id", "check_versions", ["retailer_id"])
     op.create_index("ix_check_versions_effective_from", "check_versions", ["effective_from"])
     op.create_index("ix_check_versions_effective_to", "check_versions", ["effective_to"])
-    op.create_index("ix_check_versions_lookup", "check_versions", ["retailer_id", "check_id", "effective_from", "effective_to"])
+    op.create_index(
+        "ix_check_versions_lookup",
+        "check_versions",
+        ["retailer_id", "check_id", "effective_from", "effective_to"],
+    )
 
     # 11. evaluation_runs
     op.create_table(
@@ -234,8 +248,14 @@ def upgrade() -> None:
     )
     op.create_index("ix_evaluation_runs_sale_id", "evaluation_runs", ["sale_id"])
     op.create_index("ix_evaluation_runs_transcript_id", "evaluation_runs", ["transcript_id"])
-    op.create_index("ix_evaluation_runs_sale_transcript", "evaluation_runs", ["sale_id", "transcript_id"])
-    op.create_index("ix_evaluation_runs_lineage", "evaluation_runs", ["sale_id", "transcript_id", "checklist_version_id", "policy_version"])
+    op.create_index(
+        "ix_evaluation_runs_sale_transcript", "evaluation_runs", ["sale_id", "transcript_id"]
+    )
+    op.create_index(
+        "ix_evaluation_runs_lineage",
+        "evaluation_runs",
+        ["sale_id", "transcript_id", "checklist_version_id", "policy_version"],
+    )
 
     # 12. evaluation_results
     op.create_table(
@@ -251,10 +271,16 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["check_version_id"], ["check_versions.id"]),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("evaluation_run_id", "check_version_id", name="uq_run_check_version"),
-        sa.CheckConstraint("confidence >= 0.0 AND confidence <= 1.0", name="ck_eval_result_confidence"),
+        sa.CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0", name="ck_eval_result_confidence"
+        ),
     )
-    op.create_index("ix_evaluation_results_evaluation_run_id", "evaluation_results", ["evaluation_run_id"])
-    op.create_index("ix_evaluation_results_check_version_id", "evaluation_results", ["check_version_id"])
+    op.create_index(
+        "ix_evaluation_results_evaluation_run_id", "evaluation_results", ["evaluation_run_id"]
+    )
+    op.create_index(
+        "ix_evaluation_results_check_version_id", "evaluation_results", ["check_version_id"]
+    )
 
     # 13. evaluation_evidences
     op.create_table(
@@ -269,13 +295,19 @@ def upgrade() -> None:
         sa.Column("transcript_excerpt", sa.Text(), nullable=False),
         sa.Column("ai_explanation", sa.Text(), server_default="", nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["evaluation_result_id"], ["evaluation_results.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["evaluation_result_id"], ["evaluation_results.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["transcript_segment_id"], ["transcript_segments.id"]),
         sa.PrimaryKeyConstraint("id"),
         sa.CheckConstraint("start_ms >= 0 AND end_ms >= start_ms", name="ck_evidence_timestamps"),
     )
-    op.create_index("ix_evaluation_evidences_result_id", "evaluation_evidences", ["evaluation_result_id"])
-    op.create_index("ix_evaluation_evidences_segment_id", "evaluation_evidences", ["transcript_segment_id"])
+    op.create_index(
+        "ix_evaluation_evidences_result_id", "evaluation_evidences", ["evaluation_result_id"]
+    )
+    op.create_index(
+        "ix_evaluation_evidences_segment_id", "evaluation_evidences", ["transcript_segment_id"]
+    )
 
     # 14. gate_decisions
     op.create_table(
@@ -332,7 +364,9 @@ def upgrade() -> None:
     op.create_index("ix_audit_events_actor_id", "audit_events", ["actor_id"])
     op.create_index("ix_audit_events_correlation_id", "audit_events", ["correlation_id"])
     op.create_index("ix_audit_events_created_at", "audit_events", ["created_at"])
-    op.create_index("ix_audit_entity_lookup", "audit_events", ["entity_type", "entity_id", "created_at"])
+    op.create_index(
+        "ix_audit_entity_lookup", "audit_events", ["entity_type", "entity_id", "created_at"]
+    )
     op.create_index("ix_audit_actor_lookup", "audit_events", ["actor_id", "created_at"])
 
 

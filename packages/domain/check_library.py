@@ -18,9 +18,11 @@ def _ensure_utc(dt: datetime | None) -> datetime | None:
 
 
 class CheckType(StrEnum):
-    VERBATIM = "VERBATIM"            # Script vs transcript verbatim match (disclaimer, DMO, T&Cs)
-    FACTUAL_MATCH = "FACTUAL_MATCH"  # Transcript vs CRM vs rate card (rates, email, NMI, concession)
-    BEHAVIOUR = "BEHAVIOUR"          # Non-blocking behavioral check (dead air, interruptions, rapport)
+    VERBATIM = "VERBATIM"  # Script vs transcript verbatim match (disclaimer, DMO, T&Cs)
+    FACTUAL_MATCH = (
+        "FACTUAL_MATCH"  # Transcript vs CRM vs rate card (rates, email, NMI, concession)
+    )
+    BEHAVIOUR = "BEHAVIOUR"  # Non-blocking behavioral check (dead air, interruptions, rapport)
 
 
 class VersionResolutionError(DomainError):

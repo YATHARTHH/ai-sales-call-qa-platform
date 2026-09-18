@@ -23,9 +23,15 @@ class RecordingModel(Base):
     __tablename__ = "recordings"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    sale_id: Mapped[str] = mapped_column(String(64), ForeignKey("sales.id"), nullable=False, index=True)
-    artifact_id: Mapped[str] = mapped_column(String(64), ForeignKey("artifacts.id"), nullable=False, index=True)
-    dialler_call_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    sale_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("sales.id"), nullable=False, index=True
+    )
+    artifact_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("artifacts.id"), nullable=False, index=True
+    )
+    dialler_call_id: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True
+    )
     duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
     call_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -41,9 +47,15 @@ class TranscriptModel(Base):
     __tablename__ = "transcripts"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    recording_id: Mapped[str] = mapped_column(String(64), ForeignKey("recordings.id"), nullable=False, index=True)
-    source_artifact_id: Mapped[str] = mapped_column(String(64), ForeignKey("artifacts.id"), nullable=False, index=True)
-    output_artifact_id: Mapped[str] = mapped_column(String(64), ForeignKey("artifacts.id"), nullable=False, index=True)
+    recording_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("recordings.id"), nullable=False, index=True
+    )
+    source_artifact_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("artifacts.id"), nullable=False, index=True
+    )
+    output_artifact_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("artifacts.id"), nullable=False, index=True
+    )
     asr_provider: Mapped[str] = mapped_column(String(64), nullable=False)
     asr_model: Mapped[str] = mapped_column(String(64), nullable=False)
     asr_model_version: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -56,7 +68,9 @@ class TranscriptModel(Base):
 
     recording: Mapped[RecordingModel] = relationship()
     segments: Mapped[list["TranscriptSegmentModel"]] = relationship(
-        back_populates="transcript", cascade="all, delete-orphan", order_by="TranscriptSegmentModel.segment_order"
+        back_populates="transcript",
+        cascade="all, delete-orphan",
+        order_by="TranscriptSegmentModel.segment_order",
     )
 
 
@@ -64,7 +78,9 @@ class TranscriptSegmentModel(Base):
     __tablename__ = "transcript_segments"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    transcript_id: Mapped[str] = mapped_column(String(64), ForeignKey("transcripts.id"), nullable=False, index=True)
+    transcript_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("transcripts.id"), nullable=False, index=True
+    )
     segment_order: Mapped[int] = mapped_column(Integer, nullable=False)
     speaker: Mapped[str] = mapped_column(String(32), nullable=False)
     start_ms: Mapped[int] = mapped_column(Integer, nullable=False, index=True)

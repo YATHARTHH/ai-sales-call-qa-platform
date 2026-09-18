@@ -8,9 +8,7 @@ class QueuePort(ABC):
     """Abstract interface for queue dispatch (Redis/ARQ)."""
 
     @abstractmethod
-    async def enqueue(
-        self, job_name: str, payload: dict[str, Any]
-    ) -> str:
+    async def enqueue(self, job_name: str, payload: dict[str, Any]) -> str:
         """Enqueue a background task returning the message ID."""
 
     @abstractmethod

@@ -101,7 +101,7 @@ class Evidence:
     expected_value: Any
     observed_value: Any
     transcript_excerpt: str  # Display snapshot
-    ai_explanation: str      # Model-generated explanation (explicitly separated from factual evidence)
+    ai_explanation: str  # Model-generated explanation (explicitly separated from factual evidence)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @classmethod

@@ -33,8 +33,12 @@ class EvaluationRunModel(Base):
     __tablename__ = "evaluation_runs"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    sale_id: Mapped[str] = mapped_column(String(64), ForeignKey("sales.id"), nullable=False, index=True)
-    transcript_id: Mapped[str] = mapped_column(String(64), ForeignKey("transcripts.id"), nullable=False, index=True)
+    sale_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("sales.id"), nullable=False, index=True
+    )
+    transcript_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("transcripts.id"), nullable=False, index=True
+    )
     checklist_version_id: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="COMPLETED", nullable=False)
 
@@ -70,7 +74,13 @@ class EvaluationRunModel(Base):
 
     __table_args__ = (
         Index("ix_evaluation_runs_sale_transcript", "sale_id", "transcript_id"),
-        Index("ix_evaluation_runs_lineage", "sale_id", "transcript_id", "checklist_version_id", "policy_version"),
+        Index(
+            "ix_evaluation_runs_lineage",
+            "sale_id",
+            "transcript_id",
+            "checklist_version_id",
+            "policy_version",
+        ),
     )
 
 
@@ -99,7 +109,9 @@ class EvaluationResultModel(Base):
 
     __table_args__ = (
         UniqueConstraint("evaluation_run_id", "check_version_id", name="uq_run_check_version"),
-        CheckConstraint("confidence >= 0.0 AND confidence <= 1.0", name="ck_eval_result_confidence"),
+        CheckConstraint(
+            "confidence >= 0.0 AND confidence <= 1.0", name="ck_eval_result_confidence"
+        ),
     )
 
 
@@ -108,7 +120,10 @@ class EvidenceModel(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     evaluation_result_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("evaluation_results.id", ondelete="CASCADE"), nullable=False, index=True
+        String(64),
+        ForeignKey("evaluation_results.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     transcript_segment_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("transcript_segments.id"), nullable=False, index=True
@@ -135,7 +150,9 @@ class GateDecisionModel(Base):
     __tablename__ = "gate_decisions"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    sale_id: Mapped[str] = mapped_column(String(64), ForeignKey("sales.id"), nullable=False, index=True)
+    sale_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("sales.id"), nullable=False, index=True
+    )
     evaluation_run_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("evaluation_runs.id"), nullable=False, unique=True, index=True
     )

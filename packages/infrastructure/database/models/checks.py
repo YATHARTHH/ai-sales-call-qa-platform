@@ -46,11 +46,19 @@ class CheckVersionModel(Base):
     __tablename__ = "check_versions"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    check_id: Mapped[str] = mapped_column(String(64), ForeignKey("check_definitions.id"), nullable=False, index=True)
-    retailer_id: Mapped[str] = mapped_column(String(64), ForeignKey("retailers.id"), nullable=False, index=True)
+    check_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("check_definitions.id"), nullable=False, index=True
+    )
+    retailer_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("retailers.id"), nullable=False, index=True
+    )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
-    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    effective_from: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    effective_to: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     parameters_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
@@ -60,8 +68,15 @@ class CheckVersionModel(Base):
     retailer: Mapped["RetailerModel"] = relationship()
 
     __table_args__ = (
-        UniqueConstraint("check_id", "retailer_id", "version_number", name="uq_check_retailer_version_number"),
-        CheckConstraint("effective_to IS NULL OR effective_to >= effective_from", name="ck_check_version_effective_dates"),
+        UniqueConstraint(
+            "check_id", "retailer_id", "version_number", name="uq_check_retailer_version_number"
+        ),
+        CheckConstraint(
+            "effective_to IS NULL OR effective_to >= effective_from",
+            name="ck_check_version_effective_dates",
+        ),
         CheckConstraint("version_number > 0", name="ck_check_version_number_positive"),
-        Index("ix_check_versions_lookup", "retailer_id", "check_id", "effective_from", "effective_to"),
+        Index(
+            "ix_check_versions_lookup", "retailer_id", "check_id", "effective_from", "effective_to"
+        ),
     )

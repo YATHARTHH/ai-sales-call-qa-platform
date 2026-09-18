@@ -1,6 +1,5 @@
 """Dependency injection providers for FastAPI routers."""
 
-
 from packages.application.ports.queue import QueuePort
 from packages.application.ports.storage import StoragePort
 from packages.infrastructure.queue.redis_queue import RedisQueueAdapter
