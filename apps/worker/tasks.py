@@ -73,7 +73,7 @@ async def execute_smoke_job(job_id: str, worker_id: str, correlation_id: str, se
         )
 
 
-async def recover_stale_jobs(policy: RetryPolicy | None = None) -> int:
+async def recover_stale_jobs(policy: RetryPolicy | None = None, session_factory=None) -> int:
     """Identify and reclaim jobs left in RUNNING whose lease has expired."""
     active_policy = policy or RetryPolicy()
     recovered_count = 0

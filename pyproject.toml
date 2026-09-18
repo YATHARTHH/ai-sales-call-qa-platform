@@ -72,3 +72,6 @@ testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402"]

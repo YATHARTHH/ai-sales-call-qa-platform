@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 """End-to-End Worker & Pipeline Smoke Test Script.
 
@@ -8,10 +9,12 @@ Artifact Ingestion -> DB Transaction -> Redis Dispatch -> Worker Execution -> DB
 """
 
 import asyncio
+import os
 import sys
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from apps.worker.tasks import execute_smoke_job
 from packages.domain.artifacts import Artifact
@@ -19,9 +22,7 @@ from packages.domain.jobs import JobStatus, PipelineJob
 from packages.infrastructure.database.base import Base
 from packages.infrastructure.database.models.artifacts import ArtifactModel
 from packages.infrastructure.database.models.jobs import PipelineJobModel
-import os
 from packages.infrastructure.database.session import async_session_factory, engine
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 # Support standalone testing via local sqlite or configured postgres
 if '--sqlite' in sys.argv or os.getenv('SMOKE_DB_URL'):

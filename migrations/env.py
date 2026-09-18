@@ -8,11 +8,10 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+# Import all models to ensure metadata is populated
+import packages.infrastructure.database.models  # noqa: F401
 from packages.infrastructure.config.settings import settings
 from packages.infrastructure.database.base import Base
-
-# Import all models to ensure metadata is populated
-from packages.infrastructure.database.models import artifacts, jobs  # noqa: F401
 
 config = context.config
 

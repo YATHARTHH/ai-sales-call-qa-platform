@@ -20,6 +20,9 @@ class AIProvenance:
     prompt_version: str
     check_version: str
     policy_version: str
+    pipeline_git_sha: str = ""
+    temperature: float = 0.0
+    seed: int | None = None
 
 
 @dataclass
