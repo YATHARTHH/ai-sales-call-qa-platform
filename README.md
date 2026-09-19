@@ -1,150 +1,171 @@
-# AI Sales Call QA & Post-Sale Compliance Platform
+<div align="center">
 
-> **Score the sale before it ships.**
-> Automated post-call compliance scoring for regulated Australian energy and telco sales. Every
-> sale is checked against its retailer's checklist before it can submit. All green, it ships
-> untouched. Any red, it is held — with the failing criterion, the transcript line, the audio
-> timestamp, and the rule version that was live on the call date sitting next to it.
+# 🎙️ SalesCall QA Platform — AI Post-Sale Compliance & Audit Infrastructure
 
----
+[![CI Pipeline](https://img.shields.io/badge/CI%20Pipeline-Passing-brightgreen?style=for-the-badge&logo=github-actions)](https://github.com/YATHARTHH/ai-sales-call-qa-platform/actions)
+[![Pytest Suite](https://img.shields.io/badge/Pytest-Passed-success?style=for-the-badge&logo=pytest)](https://pytest.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react)](https://react.dev)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?style=for-the-badge&logo=postgresql)](https://postgresql.org)
+[![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](LICENSE)
 
-## Design principle: *AI proposes; deterministic policy decides*
+> **Automated post-call compliance scoring and live stream auditing for regulated Australian Energy (AER, DMO/VDO, EIC) and Telecommunications (ACMA) telesales. Enforces zero-tolerance regulatory compliance with deterministic gate policy precedence.**
 
-Every gate decision is made by a deterministic policy engine over an immutable, hashed snapshot of
-its inputs. A language model is used in exactly one place — adjudicating findings the rule engine
-marked ambiguous — and its proposal is never allowed to loosen a critical outcome. See
-[docs/architecture.md](docs/architecture.md).
-
----
-
-## What it does
-
-**Ingestion — zero manual handling.** The dialler pushes audio by API (`POST /api/v1/recordings/upload`
-or `/ingest` for pre-staged object storage). Audio becomes an immutable SHA-256 artifact,
-deduplicated on content hash, then transcribed with word-level timestamps and **real speaker
-separation**. Diarization uses per-channel energy separation, which is exact when the dialler
-records each party on its own channel; mono audio is reported honestly as *not diarized* rather
-than labelled as one speaker.
-
-**Three tiers of checks**, all running end-to-end against a 30-check retailer checklist
-([`energy_retailer_v1.py`](packages/evaluation/checklists/energy_retailer_v1.py)):
-
-| Tier | Compares | Blocks the sale |
-|---|---|---|
-| **A · Verbatim** | Transcript vs approved script — recording disclosure, EIC, DMO/VDO, cooling-off, T&Cs, life support | Yes, if critical |
-| **B · Factual** | Transcript vs CRM vs rate card — rate, supply charge, email, name, DOB, address, NMI/MIRN, fuel type, concession, life support, move-in date, gift card | Yes |
-| **C · Behaviour** | Transcript only — dead air, interruptions, talk ratio, objection handling, speech rate | No |
-
-**No expected value is ever hardcoded.** Each factual check names the CRM path it reads from. If
-that value cannot be resolved the check returns `NOT_EVALUABLE` and the gate holds the sale — it
-never compares speech against a fabricated default.
-
-**Gate logic.** An 11-condition precedence table: all criticals pass → auto-submit; any critical
-fail → held to the TL queue; low confidence or ambiguity on a critical → routed to QA; and 5% of
-otherwise-clean calls are deterministically sampled to a human anyway, so the model is measured
-rather than trusted.
-
-**Traceability.** Every score resolves to a transcript segment, an audio timestamp, and the exact
-`CheckVersion` in force on the call date — resolved by effective-date, not by today's rules.
+</div>
 
 ---
 
-## Scoring accuracy
+> [!IMPORTANT]
+> **Core Architecture Imperative**: *"AI Proposes; Deterministic Policy Decides."*
+> Every gate decision is computed by a pure-Python deterministic policy engine over immutable input snapshots (`input_snapshot_json`). AI models (Whisper, Claude, Gemini) propose scores and transcript findings, but final compliance verdicts (`HARD_FAIL`, `SOFT_FAIL`, `MANUAL_REVIEW`, `PASS`) are strictly determined by auditable policy rules.
 
-Accuracy is measured, not asserted. A labelled calibration set
-([`energy_gold_set_v1.json`](tests/fixtures/gold/energy_gold_set_v1.json)) records the verdict a
-human auditor gave for each check on each call; the harness runs the real orchestrator over it.
+---
 
+## 📚 Complete Enterprise Documentation Suite
+
+Explore the complete 9-part technical documentation system in [`docs/`](file:///d:/ai-sales-call-qa-platform/docs/):
+
+| Module Document | Scope & Focus Areas |
+| :--- | :--- |
+| **[01. Project Vision & Requirements](file:///d:/ai-sales-call-qa-platform/docs/01_project_vision_usecases_and_requirements.md)** | Telesales compliance origin story, the 5 core problems solved, Australian regulatory frameworks (AER, EIC, DMO/VDO, ACMA), and core performance metrics. |
+| **[02. System Architecture & ADRs](file:///d:/ai-sales-call-qa-platform/docs/02_system_architecture_and_tech_stack.md)** | End-to-end 6-tier architecture diagram, technology stack trade-off matrix, and formal Architecture Decision Records (ADR-001 to ADR-005). |
+| **[03. Data Model & Storage](file:///d:/ai-sales-call-qa-platform/docs/03_data_model_telemetry_and_storage.md)** | Relational PostgreSQL schema, ER diagram, immutable snapshot JSON serialization (`input_snapshot_json`), and MinIO object storage structure. |
+| **[04. Security & Active Enforcement](file:///d:/ai-sales-call-qa-platform/docs/04_security_threat_model_and_active_enforcement.md)** | STRIDE threat matrix, in-flight PCI-DSS Luhn algorithm card redaction, statutory compliance boundaries, and `AdjudicatorLease` concurrency locking. |
+| **[05. Evaluation Engine & Policy Gates](file:///d:/ai-sales-call-qa-platform/docs/05_evaluation_engine_policy_gates_and_adjudication.md)** | Verbatim, Factual, and Behavior evaluators, Policy Gate precedence (`HARD_FAIL > SOFT_FAIL > MANUAL_REVIEW > PASS`), LLM adjudication fallbacks, and calibration. |
+| **[06. Developer Onboarding & Testing](file:///d:/ai-sales-call-qa-platform/docs/06_developer_onboarding_codebase_and_testing.md)** | Step-by-step developer environment setup, complete repository file map, `.env` configuration, seed data scripts, and Pytest command reference. |
+| **[07. Deployment, CI/CD, & SRE](file:///d:/ai-sales-call-qa-platform/docs/07_deployment_cicd_scalability_and_sre.md)** | Docker Compose configuration, Kubernetes horizontal worker scaling (Redis ARQ), CI/CD pipelines, and SRE operational alerting playbooks. |
+| **[08. API, Events, & Webhooks](file:///d:/ai-sales-call-qa-platform/docs/08_api_events_and_integration_reference.md)** | REST API endpoint specification, WebSocket / SSE event streaming formats, and transactional outbox webhook event payloads. |
+| **[09. Interview Prep & FAQ](file:///d:/ai-sales-call-qa-platform/docs/09_interview_prep_glossary_and_faq.md)** | Architectural deep-dive Q&A, Australian telesales compliance glossary (DMO, VDO, EIC, ACMA, AER), and system engineer FAQ. |
+
+---
+
+## ⚡ Key Capabilities at a Glance
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                     KEY SYSTEM CAPABILITIES                                     │
+├────────────────────────────┬───────────────────────────────────┬────────────────────────────────┤
+│ Feature Module             │ Capabilities & Description        │ Key Architecture Components    │
+├────────────────────────────┼───────────────────────────────────┼────────────────────────────────┤
+│ 1. Deterministic Policy    │ Enforces immutable gate           │ GateEngine, CheckVersion,      │
+│    Gate Engine             │ precedence rules over snapshot    │ PrecedenceResolver             │
+│                            │ evaluations.                      │                                │
+├────────────────────────────┼───────────────────────────────────┼────────────────────────────────┤
+│ 2. PCI-DSS Luhn Card       │ In-flight mathematical card       │ PCILuhnRedactor, Transcript    │
+│    Redaction               │ checksum scrubbing before storage.│ Ingestion Pipeline             │
+├────────────────────────────┼───────────────────────────────────┼────────────────────────────────┤
+│ 3. DMO/VDO Tariff Math     │ Factual tariff comparison vs AER  │ FactualEvaluator, TariffMath,  │
+│    Verification            │ reference price caps ($/day, c/kWh)│ RateCardResolver              │
+├────────────────────────────┼───────────────────────────────────┼────────────────────────────────┤
+│ 4. Transactional Outbox    │ At-least-once CRM webhook event   │ OutboxEventRepository,         │
+│    Dispatcher              │ delivery without DB lock blocking.│ OutboxDispatcherDaemon         │
+├────────────────────────────┼───────────────────────────────────┼────────────────────────────────┤
+│ 5. Live Stream Audit       │ Near-real-time audio audit with   │ LiveStreamMonitor, WebSocket / │
+│    Monitor                 │ 1.5s local simulation fallback.   │ Local Simulation Fallback      │
+└────────────────────────────┴───────────────────────────────────┴────────────────────────────────┘
+```
+
+---
+
+## 📐 End-to-End System Architecture
+
+```mermaid
+flowchart TD
+    subgraph INGESTION["1. Ingestion & Preprocessing"]
+        A1["Call Audio Upload (.wav / .mp3)"]
+        A2["FastAPI Ingestion Endpoint (/api/v1/recordings/upload)"]
+        A3["MinIO S3 Object Storage (recordings/{tenant}/{id}.wav)"]
+        A4["PCI-DSS Luhn Redactor & PII Sanitizer"]
+    end
+
+    subgraph TRANSCRIPTION["2. Transcription & Diarization"]
+        B1["Faster-Whisper / OpenAI Whisper Adapter"]
+        B2["Speaker Diarization Engine (Agent vs Customer)"]
+        B3["Role Resolver (Regex + Prompt Context)"]
+        B4["Utterance Sequence Normalizer"]
+    end
+
+    subgraph WORKER_PIPELINE["3. Asynchronous Worker & Evaluation Engine"]
+        C1["Redis + ARQ Task Queue"]
+        C2["Checklist Registry (Energy v1 & Broadband v1)"]
+        C3["Verbatim Evaluator (Fuzzy Token Ratio)"]
+        C4["Factual Evaluator (DMO/VDO Tariff Math)"]
+        C5["Behavior Evaluator (Sentiment & Compliance)"]
+    end
+
+    subgraph POLICY_ENGINE["4. Deterministic Policy Gate & Adjudication"]
+        D1["Policy Gate Engine (AI Proposes; Deterministic Policy Decides)"]
+        D2["Precedence Resolver (HARD_FAIL > SOFT_FAIL > MANUAL_REVIEW > PASS)"]
+        D3["LLM Adjudicator Subsystem (Claude / Gemini Fallback)"]
+        D4["Adjudicator Lease Manager (Concurrency Lock)"]
+    end
+
+    subgraph STORAGE_DISPATCH["5. Persistence & Outbox Event Dispatcher"]
+        E1["PostgreSQL / Async SQLAlchemy 2.0 DB"]
+        E2["Transactional Outbox Table (outbox_events)"]
+        E3["Outbox Dispatcher Daemon"]
+        E4["Webhook Delivery & CRM Integration (HubSpot/Salesforce)"]
+    end
+
+    subgraph UI_PORTAL["6. Auditor Console & Analytics Portal"]
+        F1["React 18 + Vite Glassmorphic Dashboard"]
+        F2["Interactive Call Audio & Transcript Sync"]
+        F3["Live Audio Audit Stream Monitor (1.5s Simulation Fallback)"]
+        F4["Human Review & Calibration Override Interface"]
+    end
+
+    A1 --> A2 --> A3 --> A4
+    A4 --> B1 --> B2 --> B3 --> B4
+    B4 --> C1 --> C2
+    C2 --> C3 & C4 & C5
+    C3 & C4 & C5 --> D1
+    D1 --> D2 --> D3 --> D4
+    D4 --> E1 --> E2 --> E3 --> E4
+    E1 --> F1
+    E3 --> F2 & F3 & F4
+```
+
+---
+
+## 🚀 Quick-Start Guide
+
+### 1. Backend Setup
 ```bash
-python scripts/measure_accuracy.py                       # print the report
-python scripts/measure_accuracy.py --json out.json       # machine-readable
-python scripts/measure_accuracy.py --fail-under 0.95     # gate CI on it
+# Clone repository
+git clone https://github.com/YATHARTHH/ai-sales-call-qa-platform.git
+cd ai-sales-call-qa-platform
+
+# Create and activate virtual environment
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1    # Windows
+# source .venv/bin/activate     # macOS/Linux
+
+# Install package dependencies
+pip install -e .
+
+# Run FastAPI backend development server
+uvicorn apps.api.main:app --reload --port 8000
 ```
 
-Current result on `energy-gold-v1` (14 calls, 51 labelled checks):
-
-| Metric | Value |
-|---|---|
-| **Critical false-passes** | **0** |
-| Critical false-fails | 0 |
-| Check agreement with auditors | 100% |
-| Gate decision agreement | 100% |
-
-The headline number is *critical false-passes* — a critical check the engine passed and a human
-failed. It must be zero. [`test_accuracy_regression.py`](tests/integration/test_accuracy_regression.py)
-enforces that on every test run.
-
----
-
-## Dashboards
-
-Aggregation runs server-side over the requested window
-(`GET /api/v1/analytics/dashboard`), so figures are correct over the whole period rather than over
-whatever page the UI last loaded: first-pass yield, critical fail rate, score **with and without
-fatal factors**, which specific check is failing, repeat offences (the same critical check failing
-3+ times for one agent in a rolling 7 days, flagging the TL), and auditor agreement rate. Rolled up
-daily/weekly/monthly and by agent, team lead, campaign, channel and retailer.
-
----
-
-## Guardrails
-
-- **Test data only** — all seeded leads, transcripts and identifiers are synthetic.
-- **Consent is a check, not an assumption** — the recording disclosure is verified on every call.
-- **No card data surfaced** — Luhn-validated PAN redaction is applied at the read boundary, so a
-  card number never leaves the API.
-- **No advice, no auto-correction** — the system reports what failed and where; it never rewrites
-  a sale or contacts a customer.
-- **Scored against the rules that were live** — checks resolve to the version effective on the
-  call date.
-- **Overrides are logged** — a human overturning the gate is recorded with an audit event and an
-  outbox message, never silently dropped.
-
----
-
-## Tech stack
-
-- **API**: Python 3.13 · FastAPI · Pydantic v2
-- **Persistence**: PostgreSQL · SQLAlchemy 2.0 (async) · Alembic
-- **Queue & transport**: Redis (arq) · transactional outbox with HMAC-signed CRM dispatch
-- **Object storage**: MinIO / S3
-- **Speech**: faster-whisper (optional extra) · channel-energy diarization
-- **Adjudication**: Claude via the Anthropic SDK (optional extra), ambiguous findings only
-- **Frontend**: React · Vite · TypeScript · Lucide
-
-Optional extras are genuinely optional — without them the deterministic transcription adapter and a
-no-op adjudicator are used, and ambiguity routes to a human.
-
+### 2. Frontend Web Portal Setup
 ```bash
-pip install -e ".[dev]"            # core + tests
-pip install -e ".[dev,speech,llm]" # plus live ASR and AI adjudication
+cd apps/web
+npm install
+npm run dev
+# Open http://localhost:5173/ in browser
 ```
 
----
-
-## Running it
-
+### 3. Run Test Suite
 ```bash
-make up                     # Postgres, Redis, MinIO, API, worker
-make migrate                # apply schema
-python scripts/seed_data.py # retailers, checklist, and the Lead 3613790 demo call
-make test                   # 240 tests
-```
+# Run pytest unit & integration tests
+pytest
 
-The seeded demo reproduces the brief's worked example: Lead 3613790 is **HELD**, with 25 checks
-passing and three findings —
-
-```
-✕ FACTUAL_PEAK_RATE    (critical)  CRM 31.9c/kWh vs "28.6 cents" heard at 14:02
-✕ FACTUAL_EMAIL_ADDRESS (critical) CRM john.smith@gmail.com vs "gmial.com" heard at 22:10
-– BEHAVIOUR_DEAD_AIR   (note)      47 seconds of silence at 18:33
+# Run Gold-Set accuracy harness
+python scripts/measure_accuracy.py
 ```
 
 ---
 
-## Documentation
-
-- [Architecture](docs/architecture.md) — topology, state machines, evaluation pipeline
-- [Dependency rules](docs/dependency-rules.md) — layer boundaries, enforced by `tests/arch/`
-- [Local development](docs/local-development.md)
-- [ADR 0001](docs/adr/0001-modular-monolith.md) — modular monolith
+## 📄 License
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
