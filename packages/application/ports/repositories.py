@@ -261,6 +261,26 @@ class OutboxRepositoryPort(ABC):
     ) -> None:
         """Persist an outbox event in the current transaction."""
 
+    @abstractmethod
+    async def claim_pending_events(
+        self, batch_size: int = 10, lease_seconds: int = 60
+    ) -> list[Any]:
+        """Atomically claim pending or retryable outbox events with lease fencing."""
+
+    @abstractmethod
+    async def mark_published(self, event_id: str) -> None:
+        """Mark event as successfully published."""
+
+    @abstractmethod
+    async def mark_retry(
+        self, event_id: str, error_message: str, next_attempt_at: datetime
+    ) -> None:
+        """Schedule event retry with updated attempt time and error note."""
+
+    @abstractmethod
+    async def mark_dead_letter(self, event_id: str, error_message: str) -> None:
+        """Permanently quarantine event into DEAD_LETTER status."""
+
 
 class AuditRepositoryPort(ABC):
     """Repository interface for append-only audit events."""

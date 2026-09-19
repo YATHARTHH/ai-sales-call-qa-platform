@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from apps.api.middleware import CorrelationAndMetricsMiddleware
 from apps.api.routers.evaluations import router as evaluations_router
+from apps.api.routers.events import router as events_router
 from apps.api.routers.health import router as health_router
 from apps.api.routers.recordings import router as recordings_router
 from apps.api.routers.transcripts import router as transcripts_router
@@ -87,3 +88,4 @@ app.include_router(health_router)
 app.include_router(recordings_router, prefix="/api/v1")
 app.include_router(transcripts_router, prefix="/api/v1")
 app.include_router(evaluations_router)
+app.include_router(events_router)

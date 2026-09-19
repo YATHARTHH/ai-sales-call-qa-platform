@@ -19,6 +19,7 @@ from packages.contracts.transcripts import (
     TranscriptSegmentResponse,
     WordTimingSchema,
 )
+from packages.domain.security.pci_redaction import redact_pci_text
 from packages.domain.jobs import JobStatus
 from packages.infrastructure.database.models.jobs import PipelineJobModel
 from packages.infrastructure.database.models.sales import SaleModel
@@ -114,7 +115,7 @@ async def get_transcript_segments(
             role_confidence=seg.role_confidence,
             start_ms=seg.start_ms,
             end_ms=seg.end_ms,
-            text=seg.text,
+            text=redact_pci_text(seg.text),
             words=[
                 WordTimingSchema(
                     word=w["word"],

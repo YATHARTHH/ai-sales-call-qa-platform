@@ -4,12 +4,13 @@ import json
 from dataclasses import asdict
 from typing import Any
 
-from sqlalchemy import desc, select, update
+from sqlalchemy import desc, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload, selectinload
 
 from packages.application.ports.repositories import EvaluationRepositoryPort
 from packages.application.services.snapshot_serializer import serialize_canonical_json
+from packages.domain.security.pci_redaction import redact_pci_text
 from packages.domain.evaluation import (
     CheckOutcome,
     EvaluationResult,
@@ -208,8 +209,9 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
     ) -> dict[str, Any] | None:
         stmt = (
             select(EvaluationRunModel)
-            .where(EvaluationRunModel.sale_id == sale_id)
+            .where(or_(EvaluationRunModel.sale_id == sale_id, EvaluationRunModel.id == sale_id))
             .options(
+                selectinload(EvaluationRunModel.transcript),
                 selectinload(EvaluationRunModel.results).selectinload(
                     EvaluationResultModel.evidence
                 ),
@@ -232,6 +234,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
             "sale_id": run.sale_id,
             "tenant_id": run.tenant_id,
             "transcript_id": run.transcript_id,
+            "recording_id": run.transcript.recording_id if run.transcript else None,
             "checklist_version_id": run.checklist_version_id,
             "status": run.status,
             "input_snapshot_id": run.input_snapshot_id,
@@ -275,8 +278,8 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
                             "end_ms": ev.end_ms,
                             "expected_value": ev.expected_value,
                             "observed_value": ev.observed_value,
-                            "transcript_excerpt": ev.transcript_excerpt,
-                            "ai_explanation": ev.ai_explanation,
+                            "transcript_excerpt": redact_pci_text(ev.transcript_excerpt),
+                            "ai_explanation": redact_pci_text(ev.ai_explanation),
                             "comparison_source": ev.comparison_source,
                             "expected_value_source": ev.expected_value_source,
                             "observed_value_source": ev.observed_value_source,
@@ -323,9 +326,19 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
         limit: int = 50,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
+        from packages.infrastructure.database.models.sales import AgentModel, CampaignModel, LeadModel, SaleModel
+        from packages.infrastructure.database.models.transcripts import TranscriptModel
+
         stmt = (
             select(GateDecisionModel, EvaluationRunModel)
             .join(EvaluationRunModel, GateDecisionModel.evaluation_run_id == EvaluationRunModel.id)
+            .options(
+                joinedload(EvaluationRunModel.sale).joinedload(SaleModel.lead),
+                joinedload(EvaluationRunModel.sale).joinedload(SaleModel.agent),
+                joinedload(EvaluationRunModel.sale).joinedload(SaleModel.campaign),
+                joinedload(EvaluationRunModel.transcript),
+                selectinload(EvaluationRunModel.results),
+            )
             .where(EvaluationRunModel.tenant_id == tenant_id)
             .order_by(desc(GateDecisionModel.decided_at))
             .offset(offset)
@@ -336,7 +349,14 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
 
         res = await self._session.execute(stmt)
         items = []
-        for gate_m, run_m in res.all():
+        for gate_m, run_m in res.unique().all():
+            score = None
+            if run_m.results:
+                scores = [r.score_numeric for r in run_m.results if r.score_numeric is not None]
+                if scores:
+                    score = round(sum(scores) / len(scores), 1)
+
+            sale = run_m.sale
             items.append({
                 "decision_id": gate_m.id,
                 "sale_id": gate_m.sale_id,
@@ -349,5 +369,10 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
                 "blocking_check_ids": gate_m.blocking_check_ids or [],
                 "decided_at": gate_m.decided_at.isoformat(),
                 "created_at": run_m.created_at.isoformat(),
+                "customer_name": sale.lead.customer_name if (sale and sale.lead) else None,
+                "agent_name": sale.agent.name if (sale and sale.agent) else None,
+                "campaign_name": sale.campaign.name if (sale and sale.campaign) else None,
+                "overall_score": score,
+                "recording_id": run_m.transcript.recording_id if run_m.transcript else None,
             })
         return items

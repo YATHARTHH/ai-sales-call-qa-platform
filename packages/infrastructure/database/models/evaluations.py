@@ -225,6 +225,7 @@ class OutboxEventModel(Base):
     idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
@@ -241,7 +242,7 @@ class OutboxEventModel(Base):
     )
 
     __table_args__ = (
-        Index("ix_outbox_unpublished", "published_at", "locked_until", "next_attempt_at"),
+        Index("ix_outbox_claim", "status", "locked_until", "next_attempt_at"),
     )
 
 

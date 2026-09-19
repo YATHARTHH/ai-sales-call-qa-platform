@@ -73,6 +73,7 @@ class EvaluationLineageResponse(BaseModel):
     sale_id: str
     tenant_id: str
     transcript_id: str
+    recording_id: str | None = None
     checklist_version_id: str
     status: str
     input_snapshot_id: str | None = None
@@ -99,6 +100,11 @@ class EvaluationQueueItemResponse(BaseModel):
     blocking_check_ids: list[str] = Field(default_factory=list)
     decided_at: str
     created_at: str
+    customer_name: str | None = None
+    agent_name: str | None = None
+    campaign_name: str | None = None
+    overall_score: float | None = None
+    recording_id: str | None = None
 
 
 class HumanReviewRequest(BaseModel):
