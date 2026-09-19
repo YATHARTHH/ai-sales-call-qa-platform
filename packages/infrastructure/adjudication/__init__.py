@@ -1,0 +1,1 @@
+"""Adjudication provider adapters."""

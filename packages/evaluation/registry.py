@@ -1,7 +1,7 @@
 """Evaluator registry and dispatcher for multi-tier QA evaluation."""
 
 import logging
-from typing import Sequence
+from collections.abc import Sequence
 
 from packages.application.services.check_resolver import ResolvedCheck
 from packages.domain.evaluation import (
@@ -48,7 +48,7 @@ class EvaluatorRegistry:
 
         try:
             return evaluator.evaluate(check, context)
-        except Exception as exc:
+        except Exception:
             logger.exception("Evaluator raised exception for check %s", check.check_code)
             return CheckExecutionResult(
                 check_id=check.check_id,

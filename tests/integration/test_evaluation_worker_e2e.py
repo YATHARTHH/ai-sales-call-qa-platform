@@ -2,19 +2,17 @@
 
 import json
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
+
 from apps.worker.tasks import execute_evaluation_job
 from packages.domain.check_library import (
-    CheckApplicability,
     CheckDefinition,
     CheckType,
     CheckVersion,
 )
-from packages.domain.exceptions import LeaseLostError
-from packages.domain.jobs import JobStatus, PipelineJob
+from packages.domain.jobs import PipelineJob
 from packages.domain.provenance import AIProvenance
 from packages.domain.retail import Lead, Retailer, Sale
 from packages.domain.state import GateStatus
@@ -26,8 +24,6 @@ from packages.domain.transcript import (
     TranscriptSegment,
 )
 from packages.evaluation.engine import EvaluationOrchestrator
-from packages.infrastructure.database.models.evaluations import EvaluationRunModel
-from packages.infrastructure.database.models.jobs import PipelineJobModel
 from packages.infrastructure.database.repositories.unit_of_work import SqlAlchemyUnitOfWork
 
 
@@ -131,7 +127,14 @@ async def test_lead_3613790_benchmark_regression_evaluation(test_db_session):
         version_number=1,
         effective_from=now,
         effective_to=None,
-        parameters_json={"expected_rate": "31.9", "tolerance": "0.00"},
+        parameters_json={
+            "comparator": "DECIMAL",
+            "crm_field": "details.peak_rate",
+            "tolerance": "0.00",
+            "keywords": ["rate", "cent", "peak", "kwh", "kilowatt"],
+            "min_value": "5",
+            "max_value": "500",
+        },
     )
     # Check 2: Customer Email (Critical Factual Match)
     chk_email = CheckDefinition(
@@ -147,7 +150,7 @@ async def test_lead_3613790_benchmark_regression_evaluation(test_db_session):
         version_number=1,
         effective_from=now,
         effective_to=None,
-        parameters_json={"expected_email": "john.smith@gmail.com"},
+        parameters_json={"comparator": "EMAIL", "crm_field": "customer_email"},
     )
     # Check 3: Dead Air Silence (Non-Critical Behavioral Check)
     chk_silence = CheckDefinition(
@@ -230,14 +233,14 @@ async def test_lead_3613790_benchmark_regression_evaluation(test_db_session):
 
     # Results breakdown
     results_by_id = {r["check_id"]: r for r in lineage["results"]}
-    
+
     # Rate check failed (28.6 vs 31.9)
     assert results_by_id["chk-rate"]["result"] == "FAIL"
-    assert "RATE_MISMATCH" in results_by_id["chk-rate"]["reason_codes"]
+    assert "FACTUAL_MISMATCH" in results_by_id["chk-rate"]["reason_codes"]
 
     # Email check failed (typo gmial.com vs gmail.com)
     assert results_by_id["chk-email"]["result"] == "FAIL"
-    assert "EMAIL_TYPO_DETECTED" in results_by_id["chk-email"]["reason_codes"]
+    assert "FACTUAL_NEAR_MISS_MISMATCH" in results_by_id["chk-email"]["reason_codes"]
 
     # Dead air check failed (47s > 30s)
     assert results_by_id["chk-silence"]["result"] == "FAIL"
@@ -331,10 +334,10 @@ async def test_evaluation_clean_call_passes_gate(test_db_session):
     await uow.transcripts.save_transcript(transcript, segments)
 
     chk_rate = CheckDefinition(id="chk-c-rate", check_code="FACTUAL_RATE", name="Rate", check_type=CheckType.FACTUAL_MATCH, is_critical=True)
-    v_rate = CheckVersion.create(check_id="chk-c-rate", retailer_id=retailer.id, version_number=1, effective_from=now, effective_to=None, parameters_json={"expected_rate": "25.0"})
+    v_rate = CheckVersion.create(check_id="chk-c-rate", retailer_id=retailer.id, version_number=1, effective_from=now, effective_to=None, parameters_json={"comparator": "DECIMAL", "crm_field": "details.peak_rate", "keywords": ["rate", "cent", "peak", "kwh"], "min_value": "5", "max_value": "500"})
 
     chk_email = CheckDefinition(id="chk-c-email", check_code="FACTUAL_EMAIL", name="Email", check_type=CheckType.FACTUAL_MATCH, is_critical=True)
-    v_email = CheckVersion.create(check_id="chk-c-email", retailer_id=retailer.id, version_number=1, effective_from=now, effective_to=None, parameters_json={"expected_email": "alice@test.com"})
+    v_email = CheckVersion.create(check_id="chk-c-email", retailer_id=retailer.id, version_number=1, effective_from=now, effective_to=None, parameters_json={"comparator": "EMAIL", "crm_field": "customer_email"})
 
     chk_eic = CheckDefinition(id="chk-c-eic", check_code="VERBATIM_EIC", name="EIC", check_type=CheckType.VERBATIM, is_critical=True)
     v_eic = CheckVersion.create(check_id="chk-c-eic", retailer_id=retailer.id, version_number=1, effective_from=now, effective_to=None, parameters_json={"mandatory_concept_anchors": ["10 business day", "cooling off", "explicit", "consent"]})
@@ -431,13 +434,13 @@ async def test_evaluation_stale_worker_lease_loss_rolls_back(test_db_session):
     await uow.jobs.save_job_idempotent(eval_job)
     await uow.commit()
 
-    # 2. Worker 1 claims lease (generation = 1)
-    w1_job = await uow.jobs.claim_job_lease_atomic(eval_job.id, "worker-1", lease_duration_seconds=60)
+    # 2. Worker 1 claims lease (generation = 1) with an immediately expired lease
+    w1_job = await uow.jobs.claim_job_lease_atomic(eval_job.id, "worker-1", lease_duration_seconds=-1)
     assert w1_job is not None
     assert w1_job.lease_generation == 1
     await uow.commit()
 
-    # 3. Lease expires and Worker 2 claims job (generation = 2)
+    # 3. Lease is expired, so Worker 2 recovers and claims job (generation = 2)
     w2_job = await uow.jobs.claim_job_lease_atomic(eval_job.id, "worker-2", lease_duration_seconds=60)
     assert w2_job is not None
     assert w2_job.lease_generation == 2
@@ -504,7 +507,7 @@ def test_deterministic_evaluation_replay():
         id="chk-r", check_code="FACTUAL_RATE", name="Rate", check_type=CheckType.FACTUAL_MATCH, is_critical=True
     )
     ver = CheckVersion.create(
-        check_id="chk-r", retailer_id="ret-r", version_number=1, effective_from=now, effective_to=None, parameters_json={"expected_rate": "25.0"}
+        check_id="chk-r", retailer_id="ret-r", version_number=1, effective_from=now, effective_to=None, parameters_json={"comparator": "DECIMAL", "crm_field": "details.peak_rate", "keywords": ["rate", "cent", "peak", "kwh"], "min_value": "5", "max_value": "500"}
     )
     sale_data = {"id": "sale-replay", "details": {"peak_rate": "25.0"}}
     lead_data = {"customer_name": "Bob"}

@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+
 from packages.application.services.snapshot_serializer import (
-    compute_snapshot_content_hash,
     create_evaluation_input_snapshot,
     serialize_canonical_json,
 )

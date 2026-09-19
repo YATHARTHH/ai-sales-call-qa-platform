@@ -1,6 +1,7 @@
 """Table-driven test suite for Deterministic Policy Gate Engine precedence resolution."""
 
 import pytest
+
 from packages.application.services.check_resolver import ResolvedCheck
 from packages.application.services.transcript_validator import TranscriptIntegrityResult
 from packages.domain.evaluation import (

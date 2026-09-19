@@ -5,11 +5,12 @@ import { setTenantId } from "./api/client";
 import { QueueItem } from "./types/evaluation";
 import { QueueDashboard } from "./components/QueueDashboard";
 import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
+import { LiveStreamMonitor } from "./components/LiveStreamMonitor";
 import { CallReview } from "./pages/CallReview";
-import { ShieldCheck, BarChart3, List, Radio } from "lucide-react";
+import { ShieldCheck, BarChart3, List, Radio, Mic } from "lucide-react";
 
 export const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<"QUEUE" | "ANALYTICS" | "REVIEW">("QUEUE");
+  const [currentView, setCurrentView] = useState<"QUEUE" | "ANALYTICS" | "REVIEW" | "LIVE_STREAM">("QUEUE");
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
   const [queueStatus, setQueueStatus] = useState("ALL");
   const [tenant, setTenant] = useState("retailer-cimet-01");
@@ -117,6 +118,29 @@ export const App: React.FC = () => {
 
           <button
             onClick={() => {
+              setCurrentView("LIVE_STREAM");
+              setSelectedSaleId(null);
+            }}
+            style={{
+              padding: "6px 16px",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: "none",
+              background: currentView === "LIVE_STREAM" ? "var(--bg-surface)" : "transparent",
+              color: currentView === "LIVE_STREAM" ? "var(--brand-cyan)" : "var(--text-secondary)",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <Mic size={15} />
+            Live Audio Stream Monitor
+          </button>
+
+          <button
+            onClick={() => {
               setCurrentView("ANALYTICS");
               setSelectedSaleId(null);
             }}
@@ -171,8 +195,10 @@ export const App: React.FC = () => {
               loadQueue();
             }}
           />
+        ) : currentView === "LIVE_STREAM" ? (
+          <LiveStreamMonitor />
         ) : currentView === "ANALYTICS" ? (
-          <AnalyticsDashboard items={queueItems} />
+          <AnalyticsDashboard />
         ) : (
           <QueueDashboard
             items={queueItems}

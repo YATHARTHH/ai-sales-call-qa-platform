@@ -1,8 +1,21 @@
-"""Tier B Evaluator: Factual CRM comparison, exact Decimal rate matching, and verbal correction resolution."""
+"""Tier B Evaluator: parameter-driven factual comparison of spoken values against CRM records.
 
-import re
-from decimal import Decimal, InvalidOperation
-from difflib import SequenceMatcher
+The evaluator carries no business expectations of its own. Each check version supplies the
+comparator type and the dotted CRM field path(s); the expected value is resolved exclusively from
+the immutable sale/lead snapshot. If it cannot be resolved the check returns NOT_EVALUABLE and the
+deterministic gate holds the sale — a spoken value is never compared against a fabricated default.
+
+Decision rule (auditable and order-independent):
+  1. Only segments matching the check's keyword scope are considered, so unrelated figures spoken
+     elsewhere in the call cannot satisfy or break the check.
+  2. An explicit verbal correction supersedes every earlier statement of the same value.
+  3. If any in-scope candidate matches the CRM value the check passes, citing that utterance;
+     other stated values are attached as CONTEXT evidence.
+  4. Otherwise the check fails, citing the closest candidate so the reviewer sees the real gap.
+"""
+
+from collections.abc import Sequence
+from decimal import Decimal
 from typing import Any
 
 from packages.application.services.check_resolver import ResolvedCheck
@@ -14,8 +27,20 @@ from packages.domain.evaluation import (
 )
 from packages.domain.transcript import SpeakerType, TranscriptSegment
 from packages.evaluation.base import BaseCheckEvaluator, EvaluatorContext
+from packages.evaluation.comparators import (
+    ComparatorType,
+    ComparisonOutcome,
+    coerce_decimal,
+    compare_values,
+    extract_boolean,
+    extract_dates,
+    extract_emails,
+    extract_identifiers,
+    extract_spoken_numbers,
+    resolve_expected_value,
+)
 
-CORRECTION_MARKERS = [
+CORRECTION_MARKERS = (
     "sorry",
     "i mean",
     "i meant",
@@ -23,44 +48,71 @@ CORRECTION_MARKERS = [
     "correction",
     "my mistake",
     "let me correct",
+    "apologies",
     "rather",
-]
+)
+
+# Comparators inferred from the check code when a version omits an explicit one.
+_CODE_COMPARATOR_HINTS: tuple[tuple[tuple[str, ...], ComparatorType], ...] = (
+    (("EMAIL",), ComparatorType.EMAIL),
+    (("DOB", "BIRTH", "DATE", "MOVE_IN"), ComparatorType.DATE),
+    (("NMI", "MIRN", "METER"), ComparatorType.IDENTIFIER),
+    (("CONCESSION", "LIFE_SUPPORT", "CONSENT_FLAG"), ComparatorType.BOOLEAN),
+    (("GIFT_CARD", "PRICE", "COST", "AMOUNT", "MONTHLY"), ComparatorType.MONEY),
+    (("RATE", "TARIFF", "CHARGE", "SUPPLY", "DISCOUNT"), ComparatorType.DECIMAL),
+    (("ADDRESS", "NAME", "FUEL", "PLAN"), ComparatorType.TEXT),
+)
+
+# Near-miss handling per comparator. Email and meter identifiers are delivery-critical: a single
+# wrong character is a genuine compliance failure, not a transcription artefact. Free text is the
+# opposite — a near match is far more likely a mishear, so a human adjudicates instead.
+_DEFAULT_NEAR_MISS_OUTCOME: dict[ComparatorType, CheckOutcome] = {
+    ComparatorType.EMAIL: CheckOutcome.FAIL,
+    ComparatorType.IDENTIFIER: CheckOutcome.FAIL,
+    ComparatorType.TEXT: CheckOutcome.AMBIGUOUS,
+}
 
 
 def _is_explicit_correction(text: str) -> bool:
-    norm = text.lower()
-    return any(marker in norm for marker in CORRECTION_MARKERS)
+    return _last_correction_marker(text) is not None
 
 
-def _extract_decimal_numbers(text: str) -> list[Decimal]:
-    """Extracts spoken numbers formatted as decimals or integers."""
-    # Find numbers followed by or preceded by rate terms (e.g. 28.6 cents, 31.9)
-    matches = re.findall(r"\b(\d+(?:\.\d+)?)\b", text)
-    results = []
-    for m in matches:
+def _last_correction_marker(text: str) -> int | None:
+    """Character offset of the last explicit correction marker in the text, if any."""
+    lowered = text.lower()
+    offsets = [lowered.rfind(marker) for marker in CORRECTION_MARKERS]
+    latest = max(offsets)
+    return latest if latest >= 0 else None
+
+
+def _resolve_comparator(check: ResolvedCheck, params: dict[str, Any]) -> ComparatorType:
+    declared = params.get("comparator")
+    if declared:
         try:
-            results.append(Decimal(m))
-        except InvalidOperation:
+            return ComparatorType(str(declared).upper())
+        except ValueError:
             pass
-    return results
+    code = check.check_code.upper()
+    for tokens, comparator in _CODE_COMPARATOR_HINTS:
+        if any(token in code for token in tokens):
+            return comparator
+    return ComparatorType.TEXT
 
 
-def _extract_emails(text: str) -> list[str]:
-    """Extracts email patterns from spoken or transcribed text."""
-    # Matches patterns like john.smith@gmial.com or john@example.com
-    return re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", text)
+def _candidate_paths(params: dict[str, Any]) -> list[str]:
+    paths = params.get("crm_fields") or params.get("crm_field")
+    if isinstance(paths, str):
+        return [paths]
+    if isinstance(paths, (list, tuple)):
+        return [str(p) for p in paths]
+    return []
 
 
 class FactualMatchEvaluator(BaseCheckEvaluator):
-    """Evaluates factual agreement between spoken transcript and authoritative CRM/sale data."""
+    """Compares spoken values against the authoritative CRM sale and lead snapshot."""
 
     def can_evaluate(self, check: ResolvedCheck) -> bool:
-        return (
-            check.check_type == "FACTUAL_MATCH"
-            or check.check_code.startswith("FACTUAL_")
-            or "RATE" in check.check_code
-            or "EMAIL" in check.check_code
-        )
+        return check.check_type == "FACTUAL_MATCH" or check.check_code.startswith("FACTUAL_")
 
     def evaluate(
         self,
@@ -68,156 +120,19 @@ class FactualMatchEvaluator(BaseCheckEvaluator):
         context: EvaluatorContext,
     ) -> CheckExecutionResult:
         params = check.parameters or {}
-        check_code = check.check_code.upper()
+        comparator = _resolve_comparator(check, params)
 
-        if "EMAIL" in check_code:
-            return self._evaluate_email(check, context, params)
-
-        # Default to tariff rate comparison
-        return self._evaluate_tariff_rates(check, context, params)
-
-    def _evaluate_tariff_rates(
-        self,
-        check: ResolvedCheck,
-        context: EvaluatorContext,
-        params: dict[str, Any],
-    ) -> CheckExecutionResult:
-        # Determine expected rate
-        expected_raw = params.get("expected_rate")
-        if expected_raw is None:
-            # Check sale details from context
-            details = context.sale_data.get("details", {})
-            if isinstance(details, dict):
-                expected_raw = (
-                    details.get("peak_rate")
-                    or details.get("daily_supply_charge")
-                    or details.get("rate")
-                )
-            if expected_raw is None:
-                sale_snap = context.snapshot.sale_snapshot
-                expected_raw = sale_snap.get("peak_rate") or sale_snap.get("expected_rate")
-
-        if expected_raw is None:
-            expected_dec = Decimal("31.9")  # Standard benchmark rate fallback
-        else:
-            expected_dec = Decimal(str(expected_raw))
-
-        tolerance = Decimal(str(params.get("tolerance", "0.00")))
-
-        # Scan transcript segments for rate mentions
-        rate_mentions: list[tuple[TranscriptSegment, Decimal, bool]] = []
-        for seg in context.segments:
-            if seg.business_role != SpeakerType.AGENT:
-                continue
-            text_lower = seg.text.lower()
-            if any(k in text_lower for k in ("rate", "cent", "c/kwh", "kilowatt", "charge", "peak")):
-                numbers = _extract_decimal_numbers(seg.text)
-                is_correction = _is_explicit_correction(seg.text)
-                for num in numbers:
-                    # Filter reasonable tariff ranges (e.g. 10.0 to 200.0)
-                    if Decimal("5.0") <= num <= Decimal("500.0"):
-                        rate_mentions.append((seg, num, is_correction))
-
-        if not rate_mentions:
-            return CheckExecutionResult(
-                check_id=check.check_id,
-                check_version_id=check.version_id,
-                is_critical=check.is_critical,
-                outcome=CheckOutcome.FAIL,
-                confidence=1.0,  # Deterministic check
-                score_numeric=0.0,
-                evidences=[],
-                reason_codes=["RATE_NOT_DISCLOSED"],
+        expected_value, expected_source = self._resolve_expected(check, context, params)
+        if expected_value is None:
+            return self._not_evaluable(
+                check,
+                "FACTUAL_EXPECTED_VALUE_UNRESOLVED",
             )
 
-        # Separate initial statements and corrections
-        initial_statements = [m for m in rate_mentions if not m[2]]
-        corrections = [m for m in rate_mentions if m[2]]
+        segments = self._scope_segments(context, params)
+        candidates = self._extract_candidates(comparator, segments, params, expected_value)
 
-        evidences: list[GroundedEvidence] = []
-
-        if corrections:
-            # Explicit verbal correction supersedes earlier statements
-            final_seg, final_val, _ = corrections[-1]
-            # Capture earlier statement as CONTEXT
-            for s, v, _ in initial_statements:
-                evidences.append(
-                    GroundedEvidence(
-                        transcript_segment_id=s.id,
-                        transcript_id=s.transcript_id,
-                        speaker=s.business_role.value,
-                        evidence_type=EvidenceType.CONTEXT,
-                        start_ms=s.start_ms,
-                        end_ms=s.end_ms,
-                        expected_value=str(expected_dec),
-                        observed_value=str(v),
-                        transcript_excerpt=s.text,
-                        ai_explanation="Initial statement superseded by subsequent explicit verbal correction.",
-                        comparison_source="CRM_RATE_CARD",
-                        expected_value_source="SALE_RECORD",
-                        observed_value_source="TRANSCRIPT_INITIAL_STATEMENT",
-                    )
-                )
-        else:
-            final_seg, final_val, _ = rate_mentions[-1]
-
-        diff = abs(final_val - expected_dec)
-        is_pass = diff <= tolerance
-
-        evidence_type = EvidenceType.SUPPORTING if is_pass else EvidenceType.CONTRADICTING
-        evidences.append(
-            GroundedEvidence(
-                transcript_segment_id=final_seg.id,
-                transcript_id=final_seg.transcript_id,
-                speaker=final_seg.business_role.value,
-                evidence_type=evidence_type,
-                start_ms=final_seg.start_ms,
-                end_ms=final_seg.end_ms,
-                expected_value=str(expected_dec),
-                observed_value=str(final_val),
-                transcript_excerpt=final_seg.text,
-                ai_explanation=(
-                    f"Spoken rate {final_val} c/kWh compared to expected {expected_dec} c/kWh "
-                    f"(variance: {diff} c/kWh)."
-                ),
-                comparison_source="CRM_RATE_CARD",
-                expected_value_source="SALE_RECORD",
-                observed_value_source="TRANSCRIPT_FINAL_STATEMENT",
-            )
-        )
-
-        return CheckExecutionResult(
-            check_id=check.check_id,
-            check_version_id=check.version_id,
-            is_critical=check.is_critical,
-            outcome=CheckOutcome.PASS if is_pass else CheckOutcome.FAIL,
-            confidence=1.0,
-            score_numeric=100.0 if is_pass else 0.0,
-            evidences=evidences,
-            reason_codes=["RATE_MATCH_VERIFIED"] if is_pass else ["RATE_MISMATCH"],
-        )
-
-    def _evaluate_email(
-        self,
-        check: ResolvedCheck,
-        context: EvaluatorContext,
-        params: dict[str, Any],
-    ) -> CheckExecutionResult:
-        expected_email = (
-            params.get("expected_email")
-            or context.lead_data.get("email")
-            or context.sale_data.get("email")
-            or context.snapshot.lead_snapshot.get("email")
-            or "john.smith@gmail.com"
-        ).strip().lower()
-
-        spoken_emails: list[tuple[TranscriptSegment, str]] = []
-        for seg in context.segments:
-            emails = _extract_emails(seg.text)
-            for e in emails:
-                spoken_emails.append((seg, e.strip().lower()))
-
-        if not spoken_emails:
+        if not candidates:
             return CheckExecutionResult(
                 check_id=check.check_id,
                 check_version_id=check.version_id,
@@ -226,52 +141,397 @@ class FactualMatchEvaluator(BaseCheckEvaluator):
                 confidence=1.0,
                 score_numeric=0.0,
                 evidences=[],
-                reason_codes=["EMAIL_NOT_STATED"],
+                reason_codes=["VALUE_NOT_DISCLOSED"],
             )
 
-        best_seg, best_email = spoken_emails[-1]
-        is_exact = best_email == expected_email
+        considered, superseded = self._apply_corrections(candidates, comparator, params)
 
-        # Check for typo (e.g. gmial.com vs gmail.com)
-        similarity = SequenceMatcher(None, expected_email, best_email).ratio()
-        is_typo = not is_exact and similarity >= 0.85
+        tolerance = coerce_decimal(params.get("tolerance", "0")) or Decimal("0")
+        near_miss_threshold = float(params.get("near_miss_threshold", 0.85))
 
-        evidences = [
-            GroundedEvidence(
-                transcript_segment_id=best_seg.id,
-                transcript_id=best_seg.transcript_id,
-                speaker=best_seg.business_role.value,
-                evidence_type=EvidenceType.SUPPORTING if is_exact else EvidenceType.CONTRADICTING,
-                start_ms=best_seg.start_ms,
-                end_ms=best_seg.end_ms,
-                expected_value=expected_email,
-                observed_value=best_email,
-                transcript_excerpt=best_seg.text,
-                ai_explanation=(
-                    "Spoken email matches CRM record."
-                    if is_exact
-                    else f"Email mismatch detected. Spoken '{best_email}' vs expected '{expected_email}'."
+        scored = [
+            (
+                segment,
+                observed,
+                compare_values(
+                    comparator,
+                    expected_value,
+                    observed,
+                    tolerance=tolerance,
+                    near_miss_threshold=near_miss_threshold,
                 ),
-                comparison_source="CRM_LEAD_RECORD",
-                expected_value_source="LEAD_SNAPSHOT",
-                observed_value_source="TRANSCRIPT_AGENT_SPEECH",
             )
+            for segment, observed, _ in considered
         ]
 
-        if is_exact:
-            reason = ["EMAIL_MATCH_VERIFIED"]
-        elif is_typo:
-            reason = ["EMAIL_TYPO_DETECTED"]
+        match = next((entry for entry in scored if entry[2].matched), None)
+        chosen = match or max(scored, key=lambda entry: entry[2].similarity)
+        segment, observed, comparison = chosen
+
+        evidences = self._build_evidence(
+            comparator=comparator,
+            expected_value=expected_value,
+            expected_source=expected_source,
+            chosen=chosen,
+            # Free-text scoping pulls in whole utterances that merely mention a keyword; listing
+            # them all as evidence would bury the one line that actually decided the check.
+            scored=[chosen] if comparator is ComparatorType.TEXT else scored,
+            superseded=superseded,
+        )
+
+        # Only genuinely competing claims lower confidence. For free text most in-scope segments
+        # simply do not contain the CRM value and are noise, not a second version of the answer.
+        distinct_values = (
+            1
+            if comparator is ComparatorType.TEXT
+            else len({str(observed) for _, observed, _ in considered})
+        )
+
+        return self._finalize(
+            check=check,
+            comparator=comparator,
+            comparison=comparison,
+            matched=match is not None,
+            candidate_count=distinct_values,
+            params=params,
+            evidences=evidences,
+        )
+
+    # ------------------------------------------------------------------
+    # Expected value resolution
+    # ------------------------------------------------------------------
+
+    def _resolve_expected(
+        self,
+        check: ResolvedCheck,
+        context: EvaluatorContext,
+        params: dict[str, Any],
+    ) -> tuple[Any, str | None]:
+        """Resolve the authoritative expected value, or (None, None) if unresolvable."""
+        literal = params.get("expected_value")
+        if literal is not None and literal != "":
+            return literal, "CHECK_VERSION_PARAMETERS"
+
+        paths = _candidate_paths(params)
+        if not paths:
+            return None, None
+
+        sources: list[tuple[str, Any]] = [
+            ("SALE_SNAPSHOT", context.snapshot.sale_snapshot),
+            ("LEAD_SNAPSHOT", context.snapshot.lead_snapshot),
+            ("SALE_RECORD", context.sale_data),
+            ("LEAD_RECORD", context.lead_data),
+        ]
+        # A bare field name should also resolve one level down into the sale detail payload.
+        expanded = list(paths) + [f"details.{p}" for p in paths if "." not in p]
+        return resolve_expected_value(sources, expanded)
+
+    # ------------------------------------------------------------------
+    # Candidate extraction
+    # ------------------------------------------------------------------
+
+    def _scope_segments(
+        self,
+        context: EvaluatorContext,
+        params: dict[str, Any],
+    ) -> list[TranscriptSegment]:
+        ordered = sorted(context.segments, key=lambda s: (s.start_ms, s.end_ms))
+
+        question_keywords = [str(k).lower() for k in params.get("question_keywords", [])]
+        if question_keywords:
+            return self._answers_to_questions(ordered, question_keywords, params)
+
+        speaker = str(params.get("speaker", "AGENT")).upper()
+        if speaker == "ANY":
+            segments = ordered
         else:
-            reason = ["EMAIL_MISMATCH"]
+            target = SpeakerType.CUSTOMER if speaker == "CUSTOMER" else SpeakerType.AGENT
+            segments = [s for s in ordered if s.business_role == target]
+
+        keywords = [str(k).lower() for k in params.get("keywords", [])]
+        if keywords:
+            segments = [s for s in segments if any(k in s.text.lower() for k in keywords)]
+        return segments
+
+    def _answers_to_questions(
+        self,
+        ordered: list[TranscriptSegment],
+        question_keywords: list[str],
+        params: dict[str, Any],
+    ) -> list[TranscriptSegment]:
+        """Scope to the customer's replies to a specific agent question.
+
+        Confirmation checks ask the agent's question and read the answer from the customer's next
+        turn, because the answer itself ("no, nobody") carries none of the question's keywords.
+        """
+        window_ms = int(params.get("response_window_ms", 30_000))
+        answer_role = (
+            SpeakerType.AGENT
+            if str(params.get("answer_speaker", "CUSTOMER")).upper() == "AGENT"
+            else SpeakerType.CUSTOMER
+        )
+        ask_role = SpeakerType.CUSTOMER if answer_role == SpeakerType.AGENT else SpeakerType.AGENT
+
+        answers: list[TranscriptSegment] = []
+        for index, segment in enumerate(ordered):
+            if segment.business_role != ask_role:
+                continue
+            if not any(keyword in segment.text.lower() for keyword in question_keywords):
+                continue
+            for candidate in ordered[index + 1 :]:
+                if candidate.start_ms > segment.end_ms + window_ms:
+                    break
+                if candidate.business_role == answer_role:
+                    answers.append(candidate)
+                    break
+        return answers
+
+    def _extract_candidates(
+        self,
+        comparator: ComparatorType,
+        segments: Sequence[TranscriptSegment],
+        params: dict[str, Any],
+        expected_value: Any,
+    ) -> list[tuple[TranscriptSegment, Any, bool]]:
+        """Return (segment, observed_value, is_correction) triples in transcript order.
+
+        A correction marker splits its own segment: values spoken before it are what the agent is
+        retracting, values after it are the correction. Treating the whole utterance as one block
+        would leave the retracted value competing with the corrected one.
+        """
+        candidates: list[tuple[TranscriptSegment, Any, bool]] = []
+
+        for segment in segments:
+            marker_at = _last_correction_marker(segment.text)
+            if marker_at is None:
+                candidates.extend(
+                    (segment, value, False)
+                    for value in self._extract_from_text(comparator, segment.text, params)
+                )
+                continue
+
+            candidates.extend(
+                (segment, value, False)
+                for value in self._extract_from_text(
+                    comparator, segment.text[:marker_at], params
+                )
+            )
+            candidates.extend(
+                (segment, value, True)
+                for value in self._extract_from_text(
+                    comparator, segment.text[marker_at:], params
+                )
+            )
+
+        return candidates
+
+    def _apply_corrections(
+        self,
+        candidates: list[tuple[TranscriptSegment, Any, bool]],
+        comparator: ComparatorType,
+        params: dict[str, Any],
+    ) -> tuple[
+        list[tuple[TranscriptSegment, Any, bool]],
+        list[tuple[TranscriptSegment, Any, bool]],
+    ]:
+        """Split candidates into those still standing and those a correction retracted.
+
+        A correction only retracts the statement it is correcting: the values spoken earlier in
+        the same breath, or in the utterance immediately before it. It does not invalidate facts
+        confirmed elsewhere in the call. Free text is exempt entirely — its observed value is a
+        whole utterance, so "sorry, I mean" about a rate would otherwise wipe out an address
+        confirmed two minutes earlier.
+        """
+        corrections = [c for c in candidates if c[2]]
+        if not corrections or comparator is ComparatorType.TEXT:
+            return list(candidates), []
+
+        window_ms = int(params.get("correction_window_ms", 30_000))
+        correction_segment_ids = {segment.id for segment, _, _ in corrections}
+        latest_correction_start = max(segment.start_ms for segment, _, _ in corrections)
+
+        considered: list[tuple[TranscriptSegment, Any, bool]] = []
+        superseded: list[tuple[TranscriptSegment, Any, bool]] = []
+
+        for candidate in candidates:
+            segment, _, is_correction = candidate
+            same_breath = segment.id in correction_segment_ids
+            immediately_before = 0 <= latest_correction_start - segment.end_ms <= window_ms
+            if not is_correction and (same_breath or immediately_before):
+                superseded.append(candidate)
+            else:
+                considered.append(candidate)
+
+        return (considered or corrections), superseded
+
+    def _extract_from_text(
+        self,
+        comparator: ComparatorType,
+        text: str,
+        params: dict[str, Any],
+    ) -> list[Any]:
+        """Extract every observed value of the comparator's kind from a span of speech."""
+        if comparator in (ComparatorType.DECIMAL, ComparatorType.MONEY):
+            minimum = coerce_decimal(params.get("min_value"))
+            maximum = coerce_decimal(params.get("max_value"))
+            return [
+                number
+                for number in extract_spoken_numbers(text)
+                if (minimum is None or number >= minimum)
+                and (maximum is None or number <= maximum)
+            ]
+        if comparator is ComparatorType.EMAIL:
+            return list(extract_emails(text))
+        if comparator is ComparatorType.DATE:
+            return list(extract_dates(text))
+        if comparator is ComparatorType.IDENTIFIER:
+            id_length = params.get("identifier_length", [10, 11])
+            return list(extract_identifiers(text, int(id_length[0]), int(id_length[1])))
+        if comparator is ComparatorType.BOOLEAN:
+            confirmed = extract_boolean(text)
+            return [confirmed] if confirmed is not None else []
+        return [text] if text.strip() else []
+
+    # ------------------------------------------------------------------
+    # Evidence and outcome
+    # ------------------------------------------------------------------
+
+    def _build_evidence(
+        self,
+        comparator: ComparatorType,
+        expected_value: Any,
+        expected_source: str | None,
+        chosen: tuple[TranscriptSegment, Any, ComparisonOutcome],
+        scored: list[tuple[TranscriptSegment, Any, ComparisonOutcome]],
+        superseded: list[tuple[TranscriptSegment, Any, bool]],
+    ) -> list[GroundedEvidence]:
+        evidences: list[GroundedEvidence] = []
+
+        for segment, observed, _ in superseded:
+            evidences.append(
+                GroundedEvidence(
+                    transcript_segment_id=segment.id,
+                    transcript_id=segment.transcript_id,
+                    speaker=segment.business_role.value,
+                    evidence_type=EvidenceType.CONTEXT,
+                    start_ms=segment.start_ms,
+                    end_ms=segment.end_ms,
+                    expected_value=str(expected_value),
+                    observed_value=str(observed),
+                    transcript_excerpt=segment.text,
+                    ai_explanation="Superseded by a subsequent explicit verbal correction.",
+                    comparison_source=comparator.value,
+                    expected_value_source=expected_source,
+                    observed_value_source="TRANSCRIPT_SUPERSEDED_STATEMENT",
+                )
+            )
+
+        chosen_segment, chosen_observed, comparison = chosen
+        for segment, observed, other in scored:
+            if segment.id == chosen_segment.id and observed == chosen_observed:
+                continue
+            evidences.append(
+                GroundedEvidence(
+                    transcript_segment_id=segment.id,
+                    transcript_id=segment.transcript_id,
+                    speaker=segment.business_role.value,
+                    evidence_type=EvidenceType.CONTEXT,
+                    start_ms=segment.start_ms,
+                    end_ms=segment.end_ms,
+                    expected_value=str(expected_value),
+                    observed_value=str(observed),
+                    transcript_excerpt=segment.text,
+                    ai_explanation=f"Additional in-scope value stated. {other.detail}",
+                    comparison_source=comparator.value,
+                    expected_value_source=expected_source,
+                    observed_value_source="TRANSCRIPT_ADDITIONAL_STATEMENT",
+                )
+            )
+
+        evidences.append(
+            GroundedEvidence(
+                transcript_segment_id=chosen_segment.id,
+                transcript_id=chosen_segment.transcript_id,
+                speaker=chosen_segment.business_role.value,
+                evidence_type=(
+                    EvidenceType.SUPPORTING if comparison.matched else EvidenceType.CONTRADICTING
+                ),
+                start_ms=chosen_segment.start_ms,
+                end_ms=chosen_segment.end_ms,
+                expected_value=str(expected_value),
+                observed_value=str(chosen_observed),
+                transcript_excerpt=chosen_segment.text,
+                ai_explanation=comparison.detail,
+                comparison_source=comparator.value,
+                expected_value_source=expected_source,
+                observed_value_source="TRANSCRIPT_AGENT_SPEECH",
+            )
+        )
+        return evidences
+
+    def _finalize(
+        self,
+        check: ResolvedCheck,
+        comparator: ComparatorType,
+        comparison: ComparisonOutcome,
+        matched: bool,
+        candidate_count: int,
+        params: dict[str, Any],
+        evidences: list[GroundedEvidence],
+    ) -> CheckExecutionResult:
+        if matched:
+            reason_codes = ["FACTUAL_MATCH_VERIFIED"]
+            if candidate_count > 1:
+                reason_codes.append("MULTIPLE_VALUES_STATED")
+            return CheckExecutionResult(
+                check_id=check.check_id,
+                check_version_id=check.version_id,
+                is_critical=check.is_critical,
+                outcome=CheckOutcome.PASS,
+                # Several in-scope values were spoken and only one matched; a human confirms.
+                confidence=1.0 if candidate_count == 1 else 0.75,
+                score_numeric=100.0,
+                evidences=evidences,
+                reason_codes=reason_codes,
+            )
+
+        if comparison.near_miss:
+            configured = params.get("near_miss_outcome")
+            outcome = (
+                CheckOutcome(str(configured).upper())
+                if configured
+                else _DEFAULT_NEAR_MISS_OUTCOME.get(comparator, CheckOutcome.AMBIGUOUS)
+            )
+            return CheckExecutionResult(
+                check_id=check.check_id,
+                check_version_id=check.version_id,
+                is_critical=check.is_critical,
+                outcome=outcome,
+                confidence=round(comparison.similarity, 2),
+                score_numeric=0.0,
+                evidences=evidences,
+                reason_codes=["FACTUAL_NEAR_MISS_MISMATCH"],
+            )
 
         return CheckExecutionResult(
             check_id=check.check_id,
             check_version_id=check.version_id,
             is_critical=check.is_critical,
-            outcome=CheckOutcome.PASS if is_exact else CheckOutcome.FAIL,
+            outcome=CheckOutcome.FAIL,
             confidence=1.0,
-            score_numeric=100.0 if is_exact else 0.0,
+            score_numeric=0.0,
             evidences=evidences,
-            reason_codes=reason,
+            reason_codes=["FACTUAL_MISMATCH"],
+        )
+
+    def _not_evaluable(self, check: ResolvedCheck, reason: str) -> CheckExecutionResult:
+        return CheckExecutionResult(
+            check_id=check.check_id,
+            check_version_id=check.version_id,
+            is_critical=check.is_critical,
+            outcome=CheckOutcome.NOT_EVALUABLE,
+            confidence=None,
+            score_numeric=None,
+            evidences=[],
+            reason_codes=[reason],
         )

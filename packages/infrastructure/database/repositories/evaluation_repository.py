@@ -21,6 +21,7 @@ from packages.domain.evaluation import (
     HumanReview,
 )
 from packages.domain.state import GateStatus
+from packages.infrastructure.database.models.checks import CheckVersionModel
 from packages.infrastructure.database.models.evaluations import (
     EvaluationResultModel,
     EvaluationRunModel,
@@ -131,6 +132,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
             status=decision.status.value if hasattr(decision.status, "value") else str(decision.status),
             policy_version=decision.policy_version,
             decision_reason_code=decision.decision_reason_code,
+            overall_score=decision.overall_score,
             auto_submitted=decision.auto_submitted,
             reason_codes=decision.reason_codes or [],
             blocking_check_ids=decision.blocking_check_ids or [],
@@ -166,6 +168,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
             status=GateStatus(model.status),
             policy_version=model.policy_version,
             decision_reason_code=model.decision_reason_code,
+            overall_score=model.overall_score,
             auto_submitted=model.auto_submitted,
             reason_codes=model.reason_codes or [],
             blocking_check_ids=model.blocking_check_ids or [],
@@ -189,6 +192,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
             status=GateStatus(model.status),
             policy_version=model.policy_version,
             decision_reason_code=model.decision_reason_code,
+            overall_score=model.overall_score,
             auto_submitted=model.auto_submitted,
             reason_codes=model.reason_codes or [],
             blocking_check_ids=model.blocking_check_ids or [],
@@ -215,6 +219,9 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
                 selectinload(EvaluationRunModel.results).selectinload(
                     EvaluationResultModel.evidence
                 ),
+                selectinload(EvaluationRunModel.results)
+                .selectinload(EvaluationResultModel.check_version)
+                .selectinload(CheckVersionModel.check),
                 selectinload(EvaluationRunModel.gate_decision).selectinload(
                     GateDecisionModel.human_reviews
                 ),
@@ -262,6 +269,36 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
                     "result_id": res.id,
                     "check_id": res.check_id,
                     "check_version_id": res.check_version_id,
+                    "check_code": (
+                        res.check_version.check.check_code
+                        if res.check_version and res.check_version.check
+                        else None
+                    ),
+                    "check_name": (
+                        res.check_version.check.name
+                        if res.check_version and res.check_version.check
+                        else None
+                    ),
+                    "check_version_number": (
+                        res.check_version.version_number if res.check_version else None
+                    ),
+                    "effective_from": (
+                        res.check_version.effective_from.isoformat()
+                        if res.check_version and res.check_version.effective_from
+                        else None
+                    ),
+                    "effective_to": (
+                        res.check_version.effective_to.isoformat()
+                        if res.check_version and res.check_version.effective_to
+                        else None
+                    ),
+                    "regulatory_reference": (
+                        res.check_version.regulatory_reference if res.check_version else None
+                    ),
+                    "jurisdiction": (
+                        res.check_version.jurisdiction if res.check_version else None
+                    ),
+                    "rule_type": res.check_version.rule_type if res.check_version else None,
                     "is_critical": res.is_critical,
                     "result": res.result,
                     "confidence": res.confidence,
@@ -299,6 +336,7 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
                 "status": run.gate_decision.status,
                 "policy_version": run.gate_decision.policy_version,
                 "decision_reason_code": run.gate_decision.decision_reason_code,
+                "overall_score": run.gate_decision.overall_score,
                 "auto_submitted": run.gate_decision.auto_submitted,
                 "reason_codes": run.gate_decision.reason_codes or [],
                 "blocking_check_ids": run.gate_decision.blocking_check_ids or [],
@@ -350,8 +388,9 @@ class SqlAlchemyEvaluationRepository(EvaluationRepositoryPort):
         res = await self._session.execute(stmt)
         items = []
         for gate_m, run_m in res.unique().all():
-            score = None
-            if run_m.results:
+            score = gate_m.overall_score
+            if score is None and run_m.results:
+                # Legacy rows written before the score was persisted.
                 scores = [r.score_numeric for r in run_m.results if r.score_numeric is not None]
                 if scores:
                     score = round(sum(scores) / len(scores), 1)

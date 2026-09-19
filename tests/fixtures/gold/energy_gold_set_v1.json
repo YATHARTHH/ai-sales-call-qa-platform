@@ -1,0 +1,285 @@
+{
+  "dataset_version": "energy-gold-v1",
+  "retailer_id": "ret-origin",
+  "notes": [
+    "Labelled calibration set for the energy retailer checklist v1.",
+    "expected_checks records the verdict a human auditor gave for that check code. Only labelled",
+    "checks are scored; unlabelled checks are ignored so the set can grow incrementally.",
+    "Calibration sampling is disabled when scoring this set so gate expectations stay deterministic.",
+    "All names, addresses, emails and identifiers are synthetic test data."
+  ],
+  "bases": {
+    "compliant_vic_electricity": {
+      "call_date": "2026-09-19T10:00:00+00:00",
+      "sale": {
+        "id": "sale-gold",
+        "retailer_id": "ret-origin",
+        "customer_type": "RESIDENTIAL",
+        "state": "VIC",
+        "campaign_id": "camp-inbound-energy",
+        "details": {
+          "plan_code": "ORIGIN_SOLAR_BOOST_2026",
+          "plan_name": "Origin Solar Boost Electricity",
+          "fuel_type": "ELECTRICITY",
+          "tariff_peak_c_kwh": "31.9",
+          "daily_supply_charge_cents": "115.5",
+          "nmi": "6102123456",
+          "cooling_off_days": 10,
+          "concession_applied": false,
+          "life_support": false,
+          "supply_address": "12 Rose Street Richmond",
+          "move_in_date": "2026-10-01",
+          "gift_card_value": "100"
+        }
+      },
+      "lead": {
+        "id": "lead-3613790",
+        "customer_name": "John Smith",
+        "customer_email": "j.smith@gmail.com",
+        "email": "j.smith@gmail.com",
+        "date_of_birth": "1985-03-12",
+        "state": "VIC"
+      },
+      "segments": [
+        [1, "AGENT", 0, 6000, "Good afternoon, my name is Sarah Jenkins and I am calling on behalf of your energy comparison service."],
+        [2, "AGENT", 6500, 12000, "This call is being recorded for training and quality assurance purposes."],
+        [3, "AGENT", 12500, 18000, "Can I confirm that you are the account holder or authorised to make changes on this account?"],
+        [4, "CUSTOMER", 18500, 22000, "Yes that's correct, John Smith speaking."],
+        [5, "AGENT", 22500, 28000, "Thank you. I have your supply address as 12 Rose Street Richmond."],
+        [6, "CUSTOMER", 28500, 30000, "Yes that's right."],
+        [7, "AGENT", 30500, 34000, "Can I confirm your date of birth please?"],
+        [8, "CUSTOMER", 34500, 38000, "It's the 12th of March 1985."],
+        [9, "AGENT", 38500, 44000, "Thank you. Your NMI is 6102123456 and this is an electricity only plan."],
+        [10, "AGENT", 44500, 52000, "This is the Origin Solar Boost Electricity plan. Your peak rate is 31.9 cents per kilowatt hour."],
+        [11, "AGENT", 52500, 58000, "The daily supply charge is 115.5 cents per day."],
+        [12, "AGENT", 58500, 66000, "Compared to the Victorian Default Offer, this plan is estimated to cost less over twelve months."],
+        [13, "AGENT", 66500, 71000, "Does anyone at the premises rely on life support equipment?"],
+        [14, "CUSTOMER", 71500, 74000, "No, nobody does."],
+        [15, "AGENT", 74500, 79000, "Do you hold a concession card such as a pension card?"],
+        [16, "CUSTOMER", 79500, 82000, "No I don't."],
+        [17, "AGENT", 82500, 88000, "Your connection date will be the 1st of October 2026."],
+        [18, "AGENT", 88500, 93000, "You will also receive a 100 dollar gift card as part of this offer."],
+        [19, "AGENT", 93500, 101000, "You have a 10 business day cooling off period during which you may cancel without penalty."],
+        [20, "AGENT", 101500, 110000, "We will send you a welcome pack containing the full terms and conditions and the energy price fact sheet to j.smith@gmail.com."],
+        [21, "AGENT", 110500, 116000, "Do you provide your explicit informed consent to proceed with this transfer?"],
+        [22, "CUSTOMER", 116500, 119000, "Yes I do."],
+        [23, "AGENT", 119500, 124000, "You are free to end this call at any time. Thank you for your time today."]
+      ]
+    }
+  },
+  "cases": [
+    {
+      "case_id": "gold-001-clean-compliant",
+      "base": "compliant_vic_electricity",
+      "description": "Fully compliant Victorian electricity sale. Auditor passed every criterion.",
+      "expected_gate": "PASSED",
+      "expected_checks": {
+        "VERBATIM_RECORDING_DISCLAIMER": "PASS",
+        "VERBATIM_AGENT_IDENTIFICATION": "PASS",
+        "VERBATIM_ACCOUNT_HOLDER_AUTHORITY": "PASS",
+        "VERBATIM_VDO_COMPARISON": "PASS",
+        "VERBATIM_EXPLICIT_INFORMED_CONSENT": "PASS",
+        "VERBATIM_COOLING_OFF_NOTICE": "PASS",
+        "VERBATIM_TERMS_AND_CONDITIONS": "PASS",
+        "VERBATIM_LIFE_SUPPORT_ENQUIRY": "PASS",
+        "VERBATIM_RIGHT_TO_END_CALL": "PASS",
+        "FACTUAL_PEAK_RATE": "PASS",
+        "FACTUAL_DAILY_SUPPLY_CHARGE": "PASS",
+        "FACTUAL_EMAIL_ADDRESS": "PASS",
+        "FACTUAL_CUSTOMER_NAME": "PASS",
+        "FACTUAL_DATE_OF_BIRTH": "PASS",
+        "FACTUAL_SUPPLY_ADDRESS": "PASS",
+        "FACTUAL_NMI": "PASS",
+        "FACTUAL_FUEL_TYPE": "PASS",
+        "FACTUAL_CONCESSION_STATUS": "PASS",
+        "FACTUAL_LIFE_SUPPORT_STATUS": "PASS",
+        "FACTUAL_MOVE_IN_DATE": "PASS",
+        "FACTUAL_GIFT_CARD_VALUE": "PASS",
+        "FACTUAL_COOLING_OFF_DAYS": "PASS",
+        "FACTUAL_PLAN_NAME": "PASS",
+        "BEHAVIOUR_DEAD_AIR": "PASS",
+        "BEHAVIOUR_INTERRUPTIONS": "PASS",
+        "BEHAVIOUR_OBJECTION_HANDLING": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-002-rate-mismatch",
+      "base": "compliant_vic_electricity",
+      "description": "Agent quoted 28.6 c/kWh against a plan priced at 31.9 c/kWh. Brief worked example.",
+      "segment_overrides": {
+        "10": "This is the Origin Solar Boost Electricity plan. Your peak rate is 28.6 cents per kilowatt hour."
+      },
+      "expected_gate": "HELD",
+      "expected_checks": {
+        "FACTUAL_PEAK_RATE": "FAIL",
+        "FACTUAL_DAILY_SUPPLY_CHARGE": "PASS",
+        "VERBATIM_RECORDING_DISCLAIMER": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-003-email-typo",
+      "base": "compliant_vic_electricity",
+      "description": "Agent read back an email one character different from the CRM record.",
+      "lead_patch": {
+        "customer_email": "j.smith@gmial.com",
+        "email": "j.smith@gmial.com"
+      },
+      "expected_gate": "HELD",
+      "expected_checks": {
+        "FACTUAL_EMAIL_ADDRESS": "FAIL",
+        "FACTUAL_PEAK_RATE": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-004-missing-recording-disclaimer",
+      "base": "compliant_vic_electricity",
+      "description": "Recording disclosure never read. Consent cannot be assumed from the recording existing.",
+      "segment_removals": [2],
+      "expected_gate": "HELD",
+      "expected_checks": {
+        "VERBATIM_RECORDING_DISCLAIMER": "FAIL",
+        "VERBATIM_EXPLICIT_INFORMED_CONSENT": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-005-rate-spoken-as-words",
+      "base": "compliant_vic_electricity",
+      "description": "Correct rate dictated in words rather than digits. Must not be scored as a miss.",
+      "segment_overrides": {
+        "10": "This is the Origin Solar Boost Electricity plan. Your peak rate is thirty one point nine cents per kilowatt hour."
+      },
+      "expected_gate": "PASSED",
+      "expected_checks": {
+        "FACTUAL_PEAK_RATE": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-006-verbal-correction",
+      "base": "compliant_vic_electricity",
+      "description": "Agent misspoke then explicitly corrected to the right rate. Correction supersedes.",
+      "segment_overrides": {
+        "10": "This is the Origin Solar Boost Electricity plan. Your peak rate is 28.6 cents per kilowatt hour. Sorry, I mean the peak rate is 31.9 cents per kilowatt hour."
+      },
+      "expected_gate": "PASSED",
+      "expected_checks": {
+        "FACTUAL_PEAK_RATE": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-007-missing-explicit-consent",
+      "base": "compliant_vic_electricity",
+      "description": "No explicit informed consent obtained before closing the sale.",
+      "segment_removals": [21],
+      "expected_gate": "HELD",
+      "expected_checks": {
+        "VERBATIM_EXPLICIT_INFORMED_CONSENT": "FAIL",
+        "VERBATIM_COOLING_OFF_NOTICE": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-008-dead-air-non-blocking",
+      "base": "compliant_vic_electricity",
+      "description": "47 seconds of dead air. Coaching note only; it must not hold a compliant sale.",
+      "segment_time_shifts": {
+        "18": 47000,
+        "19": 47000,
+        "20": 47000,
+        "21": 47000,
+        "22": 47000,
+        "23": 47000
+      },
+      "expected_gate": "PASSED",
+      "expected_checks": {
+        "BEHAVIOUR_DEAD_AIR": "FAIL",
+        "FACTUAL_PEAK_RATE": "PASS",
+        "VERBATIM_EXPLICIT_INFORMED_CONSENT": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-009-life-support-contradiction",
+      "base": "compliant_vic_electricity",
+      "description": "Customer declared life support equipment but the sale record says none.",
+      "segment_overrides": {
+        "14": "Yes, my husband is on an oxygen concentrator."
+      },
+      "expected_gate": "HELD",
+      "expected_checks": {
+        "FACTUAL_LIFE_SUPPORT_STATUS": "FAIL",
+        "VERBATIM_LIFE_SUPPORT_ENQUIRY": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-010-nmi-single-digit-error",
+      "base": "compliant_vic_electricity",
+      "description": "NMI read back with one wrong digit. Meter identifiers must match exactly.",
+      "segment_overrides": {
+        "9": "Thank you. Your NMI is 6102123457 and this is an electricity only plan."
+      },
+      "expected_gate": "HELD",
+      "expected_checks": {
+        "FACTUAL_NMI": "FAIL",
+        "FACTUAL_FUEL_TYPE": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-011-plan-data-missing-from-crm",
+      "base": "compliant_vic_electricity",
+      "description": "Plan rate absent from the CRM. No expectation exists, so nothing may auto-pass.",
+      "sale_patch": {
+        "details": {
+          "tariff_peak_c_kwh": null
+        }
+      },
+      "expected_gate": "HELD",
+      "expected_checks": {
+        "FACTUAL_PEAK_RATE": "NOT_EVALUABLE",
+        "FACTUAL_DAILY_SUPPLY_CHARGE": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-012-vdo-not-read",
+      "base": "compliant_vic_electricity",
+      "description": "Victorian Default Offer comparison omitted on a Victorian sale.",
+      "segment_removals": [12],
+      "expected_gate": "HELD",
+      "expected_checks": {
+        "VERBATIM_VDO_COMPARISON": "FAIL",
+        "VERBATIM_COOLING_OFF_NOTICE": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-013-garbled-disclaimer-routes-to-human",
+      "base": "compliant_vic_electricity",
+      "description": "Disclaimer partially garbled by ASR. Auditor could not confirm it; route to a human rather than manufacture a critical fail.",
+      "segment_overrides": {
+        "2": "This call is being recorded for training and [inaudible] purposes."
+      },
+      "expected_gate": "PASSED",
+      "expected_checks": {
+        "VERBATIM_RECORDING_DISCLAIMER": "PASS"
+      }
+    },
+    {
+      "case_id": "gold-014-gas-sale-applicability",
+      "base": "compliant_vic_electricity",
+      "description": "Gas sale: MIRN becomes applicable and NMI does not apply.",
+      "sale_patch": {
+        "details": {
+          "fuel_type": "GAS",
+          "nmi": null,
+          "mirn": "5310987654"
+        }
+      },
+      "segment_overrides": {
+        "9": "Thank you. Your MIRN is 5310987654 and this is a gas only plan.",
+        "10": "This is the Origin Solar Boost Electricity plan. Your peak rate is 31.9 cents per kilowatt hour."
+      },
+      "expected_gate": "PASSED",
+      "expected_checks": {
+        "FACTUAL_MIRN": "PASS",
+        "FACTUAL_FUEL_TYPE": "PASS"
+      },
+      "expected_not_applicable": ["FACTUAL_NMI"]
+    }
+  ]
+}

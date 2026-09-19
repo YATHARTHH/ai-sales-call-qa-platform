@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 import pytest
+
 from packages.application.services.check_resolver import (
     CheckResolutionService,
     SaleContext,
@@ -31,7 +32,7 @@ def test_applicability_empty_list_raises_domain_error():
 
 def test_applicability_allow_list_matching():
     app = CheckApplicability(fuel_types=["ELECTRICITY", "DUAL_FUEL"], states=["VIC"])
-    
+
     # Matching
     ctx_match = SaleContext(fuel_type="ELECTRICITY", state="vic")
     assert is_check_applicable(app, ctx_match) is True
@@ -47,7 +48,7 @@ def test_applicability_allow_list_matching():
 
 def test_check_resolution_service_categorizes_applicable_and_skipped():
     now = datetime(2026, 9, 19, 10, 0, 0, tzinfo=UTC)
-    
+
     elec_check = CheckDefinition(
         id="chk-elec",
         check_code="ELEC_RATE",
@@ -62,7 +63,7 @@ def test_check_resolution_service_categorizes_applicable_and_skipped():
         check_type=CheckType.FACTUAL_MATCH,
         is_critical=True,
     )
-    
+
     v_elec = CheckVersion.create(
         check_id="chk-elec",
         retailer_id="ret-1",

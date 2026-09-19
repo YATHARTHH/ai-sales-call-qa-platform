@@ -1,15 +1,14 @@
 """Base check evaluator interfaces, execution context, and result structures."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 from packages.application.services.check_resolver import ResolvedCheck
 from packages.domain.evaluation import (
     CheckExecutionResult,
-    CheckOutcome,
     EvaluationInputSnapshot,
-    GroundedEvidence,
 )
 from packages.domain.transcript import TranscriptSegment
 

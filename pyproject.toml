@@ -37,6 +37,18 @@ dev = [
     "mypy>=1.10.0",
     "types-redis>=4.6.0.20240425",
 ]
+# Live speech-to-text. Without it the deterministic transcription adapter is used.
+speech = [
+    "faster-whisper>=1.0.0",
+]
+# AI adjudication of findings the deterministic evaluators leave ambiguous. Without it every
+# ambiguous finding routes to a human, which is the safe default.
+llm = [
+    "anthropic>=0.40.0",
+]
+gemini = [
+    "google-genai>=1.0.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

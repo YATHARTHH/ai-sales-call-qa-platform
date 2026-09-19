@@ -2,7 +2,6 @@
 
 import re
 from difflib import SequenceMatcher
-from typing import Sequence
 
 from packages.application.services.check_resolver import ResolvedCheck
 from packages.domain.evaluation import (
@@ -43,6 +42,9 @@ class VerbatimRequirementEvaluator(BaseCheckEvaluator):
         params = check.parameters or {}
         concept_anchors: list[str] = params.get("mandatory_concept_anchors", [])
         required_phrases: list[str] = params.get("required_phrases", [])
+        pass_threshold = float(params.get("similarity_threshold", 0.80))
+        ambiguous_threshold = float(params.get("ambiguous_threshold", pass_threshold - 0.10))
+        review_floor = float(params.get("review_floor", 0.55))
         target_role_str = params.get("speaker", "AGENT").upper()
         target_role = (
             SpeakerType.CUSTOMER if target_role_str == "CUSTOMER" else SpeakerType.AGENT
@@ -85,7 +87,7 @@ class VerbatimRequirementEvaluator(BaseCheckEvaluator):
                 best_missing_anchors = missing
 
         # Also check concatenated adjacent segments if disclosure spans pauses
-        if best_score < 0.80 and len(relevant_segments) > 1:
+        if best_score < pass_threshold and len(relevant_segments) > 1:
             for i in range(len(relevant_segments) - 1):
                 s1 = relevant_segments[i]
                 s2 = relevant_segments[i + 1]
@@ -114,7 +116,11 @@ class VerbatimRequirementEvaluator(BaseCheckEvaluator):
                     best_missing_anchors = missing
 
         # Deterministic outcome decision
-        if len(best_missing_anchors) == 0 and best_score >= 0.80 and best_segment is not None:
+        if (
+            len(best_missing_anchors) == 0
+            and best_score >= pass_threshold
+            and best_segment is not None
+        ):
             evidences = [
                 GroundedEvidence(
                     transcript_segment_id=best_segment.id,
@@ -143,7 +149,7 @@ class VerbatimRequirementEvaluator(BaseCheckEvaluator):
                 reason_codes=["VERBATIM_DISCLOSURE_VERIFIED"],
             )
 
-        if best_segment is not None and best_score >= 0.55:
+        if best_segment is not None and best_score >= review_floor:
             evidences = [
                 GroundedEvidence(
                     transcript_segment_id=best_segment.id,
@@ -164,8 +170,13 @@ class VerbatimRequirementEvaluator(BaseCheckEvaluator):
                     observed_value_source="TRANSCRIPT_AGENT_SPEECH",
                 )
             ]
-            # Borderline confidence between 0.65 and 0.79 is AMBIGUOUS
-            outcome = CheckOutcome.AMBIGUOUS if best_score >= 0.70 else CheckOutcome.FAIL
+            # A partial read close to the script is routed to a human rather than failed
+            # outright: on noisy audio this band is usually a mishear, not a missing disclosure.
+            outcome = (
+                CheckOutcome.AMBIGUOUS
+                if best_score >= ambiguous_threshold
+                else CheckOutcome.FAIL
+            )
             return CheckExecutionResult(
                 check_id=check.check_id,
                 check_version_id=check.version_id,

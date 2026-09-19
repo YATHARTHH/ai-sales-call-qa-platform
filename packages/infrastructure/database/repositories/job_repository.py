@@ -3,7 +3,7 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -117,13 +117,33 @@ class SqlAlchemyJobRepository(JobRepositoryPort):
     async def claim_job_lease_atomic(
         self, job_id: str, worker_id: str, lease_duration_seconds: int = 60
     ) -> PipelineJob | None:
-        """Atomically claim job lease and increment lease_generation in a single atomic SQL statement."""
+        """Atomically claim a job lease and increment lease_generation in a single SQL statement.
+
+        A job is claimable only if it has not finished and nobody else currently holds its lease.
+        Without that guard an at-least-once redelivery of a message for a COMPLETED job would
+        reprocess it and write a second evaluation run, a second gate decision, and a second CRM
+        event for a sale that was already decided.
+        """
         now = datetime.now(UTC)
         lease_until = now + timedelta(seconds=lease_duration_seconds)
 
         stmt = (
             update(PipelineJobModel)
-            .where(PipelineJobModel.id == job_id)
+            .where(
+                PipelineJobModel.id == job_id,
+                # Terminal states are never re-entered.
+                PipelineJobModel.status.notin_(
+                    [
+                        JobStatus.COMPLETED.value,
+                        JobStatus.DEAD_LETTER.value,
+                    ]
+                ),
+                # A live lease belongs to another worker; only an expired one may be stolen.
+                or_(
+                    PipelineJobModel.lease_until.is_(None),
+                    PipelineJobModel.lease_until <= now,
+                ),
+            )
             .values(
                 status=JobStatus.RUNNING.value,
                 worker_id=worker_id,

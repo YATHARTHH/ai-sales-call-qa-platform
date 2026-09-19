@@ -1,33 +1,33 @@
 """Integration tests for FastAPI evaluations router, queue, lineage, and human review."""
 
 from datetime import UTC, datetime
-from decimal import Decimal
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
-from apps.api.dependencies import get_current_principal, get_queue
+from apps.api.dependencies import get_queue
 from apps.api.main import app
 from packages.application.ports.queue import QueuePort
 from packages.domain.evaluation import (
-    CheckExecutionResult,
     CheckOutcome,
-    EvaluationInputSnapshot,
     EvaluationResult,
     EvaluationRun,
     EvaluationRunStatus,
     Evidence,
     EvidenceType,
     GateDecision,
-    GateReasonCode,
-    GroundedEvidence,
 )
 from packages.domain.provenance import AIExecutionMetadata, AIProvenance
 from packages.domain.retail import Agent, Campaign, Lead, Retailer, Sale
 from packages.domain.state import GateStatus
-from packages.domain.transcript import Recording, SpeakerType, Transcript, TranscriptAvailability, TranscriptSegment
-from packages.infrastructure.database.models.artifacts import ArtifactModel
+from packages.domain.transcript import (
+    Recording,
+    SpeakerType,
+    Transcript,
+    TranscriptAvailability,
+    TranscriptSegment,
+)
 from packages.infrastructure.database.models.evaluations import OutboxEventModel
 from packages.infrastructure.database.repositories import (
     SqlAlchemyEvaluationRepository,

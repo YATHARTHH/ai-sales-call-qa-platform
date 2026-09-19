@@ -1,12 +1,12 @@
 """Orchestration engine coordinating multi-tier evaluation, snapshotting, and gate decisions."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
+from packages.application.ports.adjudicator import AdjudicatorPort, NullAdjudicator
 from packages.application.services.check_resolver import (
     CheckResolutionService,
-    ResolvedCheck,
-    ResolvedCheckSet,
     SaleContext,
 )
 from packages.application.services.snapshot_serializer import (
@@ -26,11 +26,16 @@ from packages.domain.evaluation import (
     GateDecision,
 )
 from packages.domain.provenance import AIExecutionMetadata, AIProvenance
+from packages.domain.speech_metrics import SpeechBehaviorAnalyzer
 from packages.domain.transcript import Recording, Transcript, TranscriptSegment
 from packages.evaluation.base import EvaluatorContext
 from packages.evaluation.evaluators.behavior import BehaviorEvaluator
 from packages.evaluation.evaluators.factual import FactualMatchEvaluator
 from packages.evaluation.evaluators.verbatim import VerbatimRequirementEvaluator
+from packages.evaluation.policy.adjudication_policy import (
+    AdjudicationPolicy,
+    AmbiguityAdjudicationService,
+)
 from packages.evaluation.policy.gate_engine import DeterministicPolicyEngine
 from packages.evaluation.policy.score_calculator import (
     EvaluationScoreCalculator,
@@ -55,7 +60,12 @@ class EvaluationExecutionPayload:
 class EvaluationOrchestrator:
     """Orchestrates end-to-end evaluation pipeline from snapshot to deterministic gate decision."""
 
-    def __init__(self, registry: EvaluatorRegistry | None = None):
+    def __init__(
+        self,
+        registry: EvaluatorRegistry | None = None,
+        adjudicator: AdjudicatorPort | None = None,
+        adjudication_policy: AdjudicationPolicy | None = None,
+    ):
         if registry is None:
             registry = EvaluatorRegistry([
                 VerbatimRequirementEvaluator(),
@@ -63,6 +73,12 @@ class EvaluationOrchestrator:
                 BehaviorEvaluator(),
             ])
         self.registry = registry
+        # With no adjudicator configured the engine stays fully deterministic and every
+        # ambiguous finding goes to a human.
+        self.adjudication = AmbiguityAdjudicationService(
+            adjudicator=adjudicator or NullAdjudicator(),
+            policy=adjudication_policy,
+        )
 
     def execute_evaluation(
         self,
@@ -81,6 +97,7 @@ class EvaluationOrchestrator:
         applicability_version: str = "v1",
         run_id: str | None = None,
         execution_metadata: AIExecutionMetadata | None = None,
+        clean_call_sample_rate: float = DeterministicPolicyEngine.DEFAULT_CLEAN_CALL_SAMPLE_RATE,
     ) -> EvaluationExecutionPayload:
         # 1. Validate transcript quality and lineage
         tx_integrity = TranscriptIntegrityValidator.validate(
@@ -159,26 +176,53 @@ class EvaluationOrchestrator:
                 score_result=score_res,
             )
 
-        # 5. Execute applicable checks via EvaluatorRegistry
+        # 5. Execute applicable checks via EvaluatorRegistry.
+        # Speech metrics are computed once with permissive detection thresholds so that every
+        # gap and overlap is present; each behaviour check then applies its own configured
+        # threshold to the same underlying measurements.
+        speech_behavior = None
+        if segments:
+            speech_behavior = SpeechBehaviorAnalyzer(
+                dead_air_threshold_ms=1_000,
+                interruption_min_duration_ms=1,
+            ).analyze(
+                utterances=segments,
+                audio_duration_ms=(
+                    recording.duration_seconds * 1000
+                    if recording and recording.duration_seconds
+                    else max(s.end_ms for s in segments)
+                ),
+            )
+
         eval_context = EvaluatorContext(
             snapshot=snapshot,
             segments=segments,
             sale_data=sale_data,
             lead_data=lead_data,
+            speech_behavior=speech_behavior,
         )
         check_execution_results: list[CheckExecutionResult] = []
         for check in resolved_set.applicable_checks:
             res = self.registry.evaluate_check(check, eval_context)
             check_execution_results.append(res)
 
-        # 6. Calculate QA score
+        # 6. Offer ambiguous findings to the adjudicator. It proposes; the policy below
+        # decides, and it may never loosen a critical outcome unless explicitly permitted.
         resolved_by_id = {c.check_id: c for c in resolved_set.applicable_checks}
+        check_execution_results = self.adjudication.adjudicate_results(
+            results=check_execution_results,
+            resolved_checks_by_id=resolved_by_id,
+            segments_by_id={segment.id: segment for segment in segments},
+            all_segments=list(segments),
+        )
+
+        # 7. Calculate QA score
         score_result = EvaluationScoreCalculator.calculate(
             check_results=check_execution_results,
             resolved_checks_by_id=resolved_by_id,
         )
 
-        # 7. Create EvaluationRun domain entity
+        # 8. Create EvaluationRun domain entity
         run = EvaluationRun.create(
             sale_id=sale_id,
             transcript_id=transcript.id,
@@ -191,7 +235,7 @@ class EvaluationOrchestrator:
             run_id=run_id,
         )
 
-        # 8. Evaluate policy gate
+        # 9. Evaluate policy gate
         gate_decision = DeterministicPolicyEngine.evaluate_gate(
             sale_id=sale_id,
             evaluation_run_id=run.id,
@@ -200,9 +244,10 @@ class EvaluationOrchestrator:
             resolved_checks=resolved_set.applicable_checks,
             score_result=score_result,
             policy_version=policy_version,
+            clean_call_sample_rate=clean_call_sample_rate,
         )
 
-        # 9. Convert execution results and evidences to persistent domain entities
+        # 10. Convert execution results and evidences to persistent domain entities
         domain_results: list[EvaluationResult] = []
         domain_evidences: list[Evidence] = []
 

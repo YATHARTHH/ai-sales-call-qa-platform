@@ -67,6 +67,33 @@ class Settings(BaseSettings):
     worker_lease_duration_seconds: int = Field(default=60, alias="WORKER_LEASE_DURATION_SECONDS")
     max_job_retries: int = Field(default=3, alias="MAX_JOB_RETRIES")
 
+    # Speech-to-text. "deterministic" replays a fixture and needs no model; "whisper" runs
+    # faster-whisper locally and requires the [speech] extra.
+    asr_provider: str = Field(default="deterministic", alias="ASR_PROVIDER")
+    whisper_model_size: str = Field(default="base", alias="WHISPER_MODEL_SIZE")
+    whisper_device: str = Field(default="cpu", alias="WHISPER_DEVICE")
+    whisper_compute_type: str = Field(default="int8", alias="WHISPER_COMPUTE_TYPE")
+    # Diarization strategy: "channel" (exact for two-channel dialler audio), "pyannote", or
+    # "auto" to try channel separation first and fall back to pyannote for mono.
+    diarization_provider: str = Field(default="auto", alias="DIARIZATION_PROVIDER")
+    pyannote_auth_token: str | None = Field(default=None, alias="PYANNOTE_AUTH_TOKEN")
+
+    # Adjudication of findings the deterministic evaluators leave ambiguous.
+    # "none" keeps the engine fully deterministic and routes every ambiguity to a human.
+    adjudicator_provider: str = Field(default="none", alias="ADJUDICATOR_PROVIDER")
+    adjudicator_model: str | None = Field(default=None, alias="ADJUDICATOR_MODEL")
+    adjudicator_min_confidence: float = Field(default=0.85, alias="ADJUDICATOR_MIN_CONFIDENCE")
+    # Allowing a model to turn an unresolved CRITICAL check into a pass is the one move that can
+    # ship a non-compliant sale. Off unless an operator deliberately enables it.
+    adjudicator_allow_critical_pass: bool = Field(
+        default=False, alias="ADJUDICATOR_ALLOW_CRITICAL_PASS"
+    )
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
+
+    # Policy
+    clean_call_sample_rate: float = Field(default=0.05, alias="CLEAN_CALL_SAMPLE_RATE")
+
     # Observability
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_format: str = Field(default="json", alias="LOG_FORMAT")

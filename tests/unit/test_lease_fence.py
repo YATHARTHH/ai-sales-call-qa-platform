@@ -11,39 +11,98 @@ from packages.infrastructure.database.repositories.job_repository import (
 )
 
 
+async def _insert_job(
+    session,
+    job_id: str,
+    status: JobStatus = JobStatus.QUEUED,
+    lease_until=None,
+    lease_generation: int = 0,
+) -> None:
+    now = datetime.now(UTC)
+    session.add(
+        PipelineJobModel(
+            id=job_id,
+            recording_id="rec-1",
+            stage="TRANSCRIBING",
+            status=status.value,
+            idempotency_key=f"key-{job_id}",
+            lease_generation=lease_generation,
+            lease_until=lease_until,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    await session.flush()
+
+
 @pytest.mark.asyncio
 async def test_atomic_lease_claim_increments_generation(test_db_session):
-    """claim_job_lease_atomic must atomically increment lease_generation in PostgreSQL."""
+    """A queued job is claimable and the claim atomically increments lease_generation."""
     repo = SqlAlchemyJobRepository(test_db_session)
-    now = datetime.now(UTC)
+    await _insert_job(test_db_session, "job-lease-1")
 
-    # Insert initial queued job with lease_generation=0
-    job_model = PipelineJobModel(
-        id="job-lease-1",
-        recording_id="rec-1",
-        stage="TRANSCRIBING",
-        status=JobStatus.QUEUED.value,
-        idempotency_key="key-lease-1",
-        lease_generation=0,
-        created_at=now,
-        updated_at=now,
+    claimed = await repo.claim_job_lease_atomic("job-lease-1", "worker-A", lease_duration_seconds=60)
+
+    assert claimed is not None
+    assert claimed.worker_id == "worker-A"
+    assert claimed.lease_generation == 1
+    assert claimed.status == JobStatus.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_live_lease_cannot_be_stolen_by_a_second_worker(test_db_session):
+    """Two workers must never hold the same job at once — that is what a lease is for."""
+    repo = SqlAlchemyJobRepository(test_db_session)
+    await _insert_job(test_db_session, "job-lease-live")
+
+    first = await repo.claim_job_lease_atomic("job-lease-live", "worker-A", lease_duration_seconds=60)
+    second = await repo.claim_job_lease_atomic("job-lease-live", "worker-B", lease_duration_seconds=60)
+
+    assert first is not None
+    assert second is None
+
+
+@pytest.mark.asyncio
+async def test_expired_lease_is_recoverable_by_another_worker(test_db_session):
+    """When a worker dies its lease expires and another may take over, fencing the first out."""
+    repo = SqlAlchemyJobRepository(test_db_session)
+    await _insert_job(
+        test_db_session,
+        "job-lease-expired",
+        status=JobStatus.RUNNING,
+        lease_until=datetime.now(UTC) - timedelta(seconds=5),
+        lease_generation=1,
     )
-    test_db_session.add(job_model)
-    await test_db_session.flush()
 
-    # Claim lease by worker 1
-    claimed_1 = await repo.claim_job_lease_atomic("job-lease-1", "worker-A", lease_duration_seconds=60)
-    assert claimed_1 is not None
-    assert claimed_1.worker_id == "worker-A"
-    assert claimed_1.lease_generation == 1
-    assert claimed_1.status == JobStatus.RUNNING
+    recovered = await repo.claim_job_lease_atomic(
+        "job-lease-expired", "worker-B", lease_duration_seconds=60
+    )
 
-    # Claim lease again by worker 2 (e.g. after recovery or timeout)
-    claimed_2 = await repo.claim_job_lease_atomic("job-lease-1", "worker-B", lease_duration_seconds=60)
-    assert claimed_2 is not None
-    assert claimed_2.worker_id == "worker-B"
-    assert claimed_2.lease_generation == 2
-    assert claimed_2.status == JobStatus.RUNNING
+    assert recovered is not None
+    assert recovered.worker_id == "worker-B"
+    # The generation moves on, so the dead worker's late completion is fenced out.
+    assert recovered.lease_generation == 2
+
+
+@pytest.mark.asyncio
+async def test_completed_job_is_never_reclaimed(test_db_session):
+    """A redelivered message for a finished job must not reprocess it.
+
+    Without this guard an at-least-once queue would write a second evaluation run, a second gate
+    decision, and a second CRM event for a sale that was already decided.
+    """
+    repo = SqlAlchemyJobRepository(test_db_session)
+    await _insert_job(test_db_session, "job-done", status=JobStatus.COMPLETED)
+
+    assert await repo.claim_job_lease_atomic("job-done", "worker-A") is None
+
+
+@pytest.mark.asyncio
+async def test_dead_letter_job_is_never_reclaimed(test_db_session):
+    repo = SqlAlchemyJobRepository(test_db_session)
+    await _insert_job(test_db_session, "job-dead", status=JobStatus.DEAD_LETTER)
+
+    assert await repo.claim_job_lease_atomic("job-dead", "worker-A") is None
 
 
 @pytest.mark.asyncio

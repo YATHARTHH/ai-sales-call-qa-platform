@@ -1,4 +1,4 @@
-﻿.PHONY: help up down restart logs ps test lint typecheck smoke migrate seed build
+.PHONY: help up down restart logs ps test lint typecheck smoke migrate seed build
 
 help:
 	@echo "SalesCall QA Platform — Developer Commands"
@@ -11,6 +11,8 @@ help:
 	@echo "  make lint       Run ruff linter and code formatting check"
 	@echo "  make typecheck  Run mypy static type checking"
 	@echo "  make smoke      Run end-to-end async worker smoke test"
+	@echo "  make accuracy   Score the engine against the labelled calibration set"
+	@echo "  make seed       Seed retailers, the checklist, and the demo call"
 	@echo "  make migrate    Run database migrations"
 	@echo "  make build      Rebuild container images"
 
@@ -46,3 +48,9 @@ smoke:
 
 migrate:
 	alembic upgrade head
+
+seed:
+	python scripts/seed_data.py
+
+accuracy:
+	python scripts/measure_accuracy.py

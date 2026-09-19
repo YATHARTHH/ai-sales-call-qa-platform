@@ -178,6 +178,9 @@ class GateDecisionModel(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
     decision_reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    # The weighted score the gate actually decided on, stored rather than recomputed so
+    # dashboards and audits report the same number the decision was made with.
+    overall_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     auto_submitted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     reason_codes: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     blocking_check_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)

@@ -13,12 +13,23 @@ export interface GroundedEvidence {
   transcript_excerpt: string;
   ai_explanation: string;
   comparison_source?: string | null;
+  expected_value_source?: string | null;
+  observed_value_source?: string | null;
 }
 
 export interface CheckResult {
   result_id: string;
   check_id: string;
   check_version_id: string;
+  // Identity and provenance of the exact rule version live on the call date.
+  check_code?: string | null;
+  check_name?: string | null;
+  check_version_number?: number | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  regulatory_reference?: string | null;
+  jurisdiction?: string | null;
+  rule_type?: string | null;
   is_critical: boolean;
   result: "PASS" | "FAIL" | "AMBIGUOUS" | "NOT_EVALUABLE" | "UNSUPPORTED" | "ERROR";
   confidence: number | null;
@@ -32,6 +43,7 @@ export interface GateDecision {
   status: GateStatus;
   policy_version: string;
   decision_reason_code: string;
+  overall_score?: number | null;
   auto_submitted: boolean;
   reason_codes: string[];
   blocking_check_ids: string[];

@@ -11,6 +11,12 @@ from packages.application.ports.transcription import (
     WordTiming,
 )
 from packages.domain.exceptions import ArtifactIntegrityError, DomainError
+from packages.infrastructure.transcription.diarization import (
+    CompositeDiarizer,
+    DiarizerPort,
+    PyannoteDiarizer,
+    StereoChannelDiarizer,
+)
 from packages.observability.logging import get_logger
 
 logger = get_logger("transcription.whisper")
@@ -31,6 +37,7 @@ class FasterWhisperAdapter(TranscriptionPort):
         model_size: str = "base",
         device: str = "cpu",
         compute_type: str = "int8",
+        diarizer: DiarizerPort | None = None,
     ):
         self.model_size = model_size
         self.device = device
@@ -38,7 +45,11 @@ class FasterWhisperAdapter(TranscriptionPort):
         self.transcription_config_hash = hashlib.sha256(
             f"whisper-{model_size}-{device}-{compute_type}".encode()
         ).hexdigest()[:16]
-        self.diarization_config_hash = hashlib.sha256(b"pyannote-community-v3").hexdigest()[:16]
+        # Channel separation first: it is exact when the dialler records each party on its own
+        # channel. Pyannote is attempted only for mono audio and only if installed.
+        self.diarizer = diarizer or CompositeDiarizer(
+            [StereoChannelDiarizer(), PyannoteDiarizer()]
+        )
 
     def provider_name(self) -> str:
         return f"faster-whisper-{self.model_size}"
@@ -80,7 +91,7 @@ class FasterWhisperAdapter(TranscriptionPort):
             ]
             utterances.append(
                 RawUtterance(
-                    speaker_label="SPEAKER_00",  # default single-speaker fallback
+                    speaker_label="",  # assigned by the diarizer below
                     start_ms=int(s.start * 1000),
                     end_ms=int(s.end * 1000),
                     text=s.text.strip(),
@@ -88,15 +99,23 @@ class FasterWhisperAdapter(TranscriptionPort):
                 )
             )
 
+        diarization = self.diarizer.diarize(source.local_path, utterances)
+        if not diarization.is_diarized:
+            logger.warning(
+                "transcript_not_diarized",
+                reason_codes=diarization.reason_codes,
+                path=source.local_path,
+            )
+
         return TranscriptionResult(
-            utterances=utterances,
+            utterances=diarization.utterances,
             language=info.language or "en-AU",
             asr_provider="faster-whisper",
             asr_model=f"whisper-{self.model_size}",
             asr_model_version="faster-whisper-v1",
-            diarization_provider="builtin-energy",
-            diarization_version="v1",
+            diarization_provider=diarization.provider,
+            diarization_version=diarization.version,
             transcription_config_hash=self.transcription_config_hash,
-            diarization_config_hash=self.diarization_config_hash,
+            diarization_config_hash=diarization.config_hash,
             processing_mode="live_asr",
         )

@@ -33,6 +33,15 @@ class CheckResultContract(BaseModel):
     result_id: str
     check_id: str
     check_version_id: str
+    # Identity and provenance of the exact rule version that was live on the call date.
+    check_code: str | None = None
+    check_name: str | None = None
+    check_version_number: int | None = None
+    effective_from: str | None = None
+    effective_to: str | None = None
+    regulatory_reference: str | None = None
+    jurisdiction: str | None = None
+    rule_type: str | None = None
     is_critical: bool
     result: str
     confidence: float | None
@@ -48,6 +57,7 @@ class GateDecisionContract(BaseModel):
     status: str
     policy_version: str
     decision_reason_code: str
+    overall_score: float | None = None
     auto_submitted: bool
     reason_codes: list[str] = Field(default_factory=list)
     blocking_check_ids: list[str] = Field(default_factory=list)
@@ -95,6 +105,7 @@ class EvaluationQueueItemResponse(BaseModel):
     tenant_id: str
     status: str
     decision_reason_code: str
+    overall_score: float | None = None
     auto_submitted: bool
     reason_codes: list[str] = Field(default_factory=list)
     blocking_check_ids: list[str] = Field(default_factory=list)

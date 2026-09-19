@@ -1,7 +1,7 @@
 """Score calculator with ScoreEligibility criteria and zero-denominator guard."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from packages.application.services.check_resolver import ResolvedCheck
 from packages.domain.evaluation import CheckExecutionResult, CheckOutcome

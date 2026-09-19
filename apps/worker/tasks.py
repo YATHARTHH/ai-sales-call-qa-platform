@@ -34,9 +34,11 @@ from packages.infrastructure.database.repositories.unit_of_work import SqlAlchem
 from packages.infrastructure.database.session import async_session_factory
 from packages.infrastructure.queue.redis_queue import RedisQueueAdapter
 from packages.infrastructure.storage.minio_storage import MinioStorageAdapter
-from packages.infrastructure.transcription.deterministic_adapter import (
-    DeterministicTranscriptionAdapter,
+from packages.infrastructure.adjudication.factory import (
+    build_adjudication_policy,
+    build_adjudicator,
 )
+from packages.infrastructure.transcription.factory import build_transcriber
 from packages.infrastructure.transcription.role_resolver import (
     HeuristicSpeakerRoleResolver,
 )
@@ -133,7 +135,7 @@ async def execute_transcription_job(
     factory = session_factory or async_session_factory
     storage = storage_adapter or MinioStorageAdapter()
     queue = queue_adapter or RedisQueueAdapter()
-    asr = transcriber or DeterministicTranscriptionAdapter()
+    asr = transcriber or build_transcriber()
     roles = role_resolver or HeuristicSpeakerRoleResolver()
 
     async with factory() as session:
@@ -479,7 +481,10 @@ async def execute_evaluation_job(
     start_time = datetime.now(UTC)
 
     factory = session_factory or async_session_factory
-    orch = orchestrator or EvaluationOrchestrator()
+    orch = orchestrator or EvaluationOrchestrator(
+        adjudicator=build_adjudicator(),
+        adjudication_policy=build_adjudication_policy(),
+    )
 
     async with factory() as session:
         uow = SqlAlchemyUnitOfWork(session)
@@ -559,6 +564,7 @@ async def execute_evaluation_job(
                 sale_data=sale_data,
                 lead_data=lead_data,
                 provenance=provenance,
+                clean_call_sample_rate=settings.clean_call_sample_rate,
                 policy_version="policy.v1",
             )
 

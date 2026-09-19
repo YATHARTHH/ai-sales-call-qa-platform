@@ -1,6 +1,6 @@
 """Integration tests for OutboxRepository atomic claiming and OutboxDispatcher lifecycle."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
