@@ -181,6 +181,16 @@ class CheckLibraryRepositoryPort(ABC):
         """Fetch all historical versions of a check for a retailer."""
 
     @abstractmethod
+    async def get_check_definitions(self) -> list[CheckDefinition]:
+        """Fetch all defined check templates."""
+
+    @abstractmethod
+    async def get_all_check_versions_by_check_id(
+        self, retailer_id: str | None = None
+    ) -> dict[str, list[CheckVersion]]:
+        """Fetch grouped versions by check_id."""
+
+    @abstractmethod
     async def get_retailer_checklist(
         self, retailer_id: str, call_date: datetime
     ) -> list[CheckVersion]:
@@ -208,8 +218,48 @@ class EvaluationRepositoryPort(ABC):
         """Persist human review / TL override."""
 
     @abstractmethod
-    async def get_evaluation_lineage(self, sale_id: str) -> dict[str, Any] | None:
-        """Fetch the full unbroken evaluation and review lineage for a sale."""
+    async def get_evaluation_lineage(
+        self, sale_id: str, tenant_id: str | None = None
+    ) -> dict[str, Any] | None:
+        """Fetch the full unbroken evaluation and review lineage for a sale with tenant isolation."""
+
+    @abstractmethod
+    async def get_gate_decision_by_id(self, decision_id: str) -> GateDecision | None:
+        """Fetch gate decision by primary key."""
+
+    @abstractmethod
+    async def get_gate_decision_by_sale_id(self, sale_id: str) -> GateDecision | None:
+        """Fetch active gate decision for a sale."""
+
+    @abstractmethod
+    async def update_gate_decision_status(self, decision_id: str, new_status: str) -> None:
+        """Update the status of a gate decision."""
+
+    @abstractmethod
+    async def get_evaluation_queue(
+        self,
+        tenant_id: str,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Fetch paginated gate decisions and reviews for human audit."""
+
+
+class OutboxRepositoryPort(ABC):
+    """Repository interface for transactional outbox pattern."""
+
+    @abstractmethod
+    async def save_event(
+        self,
+        event_type: str,
+        aggregate_type: str,
+        aggregate_id: str,
+        payload: dict[str, Any],
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> None:
+        """Persist an outbox event in the current transaction."""
 
 
 class AuditRepositoryPort(ABC):
@@ -232,6 +282,9 @@ class UnitOfWorkPort(ABC):
     artifacts: ArtifactRepositoryPort
     jobs: JobRepositoryPort
     audit: AuditRepositoryPort
+    checks: CheckLibraryRepositoryPort
+    evaluations: EvaluationRepositoryPort
+    outbox: OutboxRepositoryPort
 
     @abstractmethod
     async def commit(self) -> None:

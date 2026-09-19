@@ -60,6 +60,10 @@ class CheckVersionModel(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
     parameters_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    jurisdiction: Mapped[str] = mapped_column(String(32), default="AU-VIC", nullable=False)
+    regulatory_reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    rule_type: Mapped[str] = mapped_column(String(32), default="LEGAL_REQUIREMENT", nullable=False)
+    applicability_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )

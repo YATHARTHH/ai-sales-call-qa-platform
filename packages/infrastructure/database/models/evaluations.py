@@ -1,4 +1,4 @@
-"""SQLAlchemy models for evaluation runs, check results, evidence, gates, reviews, and audit events."""
+"""SQLAlchemy models for evaluation runs, check results, evidence, gates, reviews, outbox, and audit events."""
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -40,7 +40,15 @@ class EvaluationRunModel(Base):
         String(64), ForeignKey("transcripts.id"), nullable=False, index=True
     )
     checklist_version_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="COMPLETED", nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="SUCCEEDED", nullable=False)
+    tenant_id: Mapped[str] = mapped_column(
+        String(64), default="default-tenant", nullable=False, index=True
+    )
+
+    # Immutable Snapshot fields
+    input_snapshot_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_snapshot_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_snapshot_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     # Provenance fields (AI Lineage)
     model_provider: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -81,6 +89,7 @@ class EvaluationRunModel(Base):
             "checklist_version_id",
             "policy_version",
         ),
+        Index("ix_evaluation_runs_tenant", "tenant_id", "created_at"),
     )
 
 
@@ -94,9 +103,12 @@ class EvaluationResultModel(Base):
     check_version_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("check_versions.id"), nullable=False, index=True
     )
+    check_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    is_critical: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     result: Mapped[str] = mapped_column(String(32), nullable=False)
-    confidence: Mapped[float] = mapped_column(Float, nullable=False)
-    score_numeric: Mapped[float] = mapped_column(Float, nullable=False)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    score_numeric: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reason_codes: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
@@ -110,7 +122,8 @@ class EvaluationResultModel(Base):
     __table_args__ = (
         UniqueConstraint("evaluation_run_id", "check_version_id", name="uq_run_check_version"),
         CheckConstraint(
-            "confidence >= 0.0 AND confidence <= 1.0", name="ck_eval_result_confidence"
+            "confidence IS NULL OR (confidence >= 0.0 AND confidence <= 1.0)",
+            name="ck_eval_result_confidence",
         ),
     )
 
@@ -128,12 +141,18 @@ class EvidenceModel(Base):
     transcript_segment_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("transcript_segments.id"), nullable=False, index=True
     )
+    transcript_id: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    speaker: Mapped[str] = mapped_column(String(32), default="AGENT", nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(32), default="SUPPORTING", nullable=False)
     start_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     end_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     expected_value: Mapped[Any] = mapped_column(JSON, nullable=True)
     observed_value: Mapped[Any] = mapped_column(JSON, nullable=True)
     transcript_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
     ai_explanation: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    comparison_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    expected_value_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    observed_value_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
@@ -160,6 +179,9 @@ class GateDecisionModel(Base):
     policy_version: Mapped[str] = mapped_column(String(64), nullable=False)
     decision_reason_code: Mapped[str] = mapped_column(String(64), nullable=False)
     auto_submitted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reason_codes: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    blocking_check_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    warnings: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     decided_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
@@ -180,6 +202,7 @@ class HumanReviewModel(Base):
     reviewer_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("agents.id"), nullable=False, index=True
     )
+    reviewer_role: Mapped[str] = mapped_column(String(32), default="qa_auditor", nullable=False)
     action: Mapped[str] = mapped_column(String(32), nullable=False)
     reason_notes: Mapped[str] = mapped_column(Text, nullable=False)
     reviewed_at: Mapped[datetime] = mapped_column(
@@ -188,6 +211,38 @@ class HumanReviewModel(Base):
 
     gate_decision: Mapped[GateDecisionModel] = relationship(back_populates="human_reviews")
     reviewer: Mapped["AgentModel"] = relationship()
+
+
+class OutboxEventModel(Base):
+    __tablename__ = "outbox_events"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    aggregate_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    aggregate_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    event_schema_version: Mapped[str] = mapped_column(String(16), default="v1", nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
+    )
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    locked_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        Index("ix_outbox_unpublished", "published_at", "locked_until", "next_attempt_at"),
+    )
 
 
 class AuditEventModel(Base):

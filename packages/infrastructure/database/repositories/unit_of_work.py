@@ -9,8 +9,17 @@ from packages.infrastructure.database.repositories.artifact_repository import (
 from packages.infrastructure.database.repositories.audit_repository import (
     SqlAlchemyAuditRepository,
 )
+from packages.infrastructure.database.repositories.check_repository import (
+    SqlAlchemyCheckLibraryRepository,
+)
+from packages.infrastructure.database.repositories.evaluation_repository import (
+    SqlAlchemyEvaluationRepository,
+)
 from packages.infrastructure.database.repositories.job_repository import (
     SqlAlchemyJobRepository,
+)
+from packages.infrastructure.database.repositories.outbox_repository import (
+    SqlAlchemyOutboxRepository,
 )
 from packages.infrastructure.database.repositories.sale_repository import (
     SqlAlchemySaleRepository,
@@ -30,6 +39,9 @@ class SqlAlchemyUnitOfWork(UnitOfWorkPort):
         self.artifacts = SqlAlchemyArtifactRepository(session)
         self.jobs = SqlAlchemyJobRepository(session)
         self.audit = SqlAlchemyAuditRepository(session)
+        self.checks = SqlAlchemyCheckLibraryRepository(session)
+        self.evaluations = SqlAlchemyEvaluationRepository(session)
+        self.outbox = SqlAlchemyOutboxRepository(session)
 
     async def commit(self) -> None:
         await self.session.commit()

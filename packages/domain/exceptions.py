@@ -77,3 +77,33 @@ class LeaseLostError(DomainError):
     def __init__(self, message: str):
         super().__init__(message, code="LEASE_LOST")
 
+
+class EvaluationExecutionError(DomainError):
+    """Raised when an evaluator fails during check execution."""
+
+    def __init__(self, message: str, check_id: str | None = None):
+        super().__init__(message, code="EVALUATION_EXECUTION_ERROR")
+        self.check_id = check_id
+
+
+class PolicyGateError(DomainError):
+    """Raised when policy gate evaluation or precedence resolution fails."""
+
+    def __init__(self, message: str):
+        super().__init__(message, code="POLICY_GATE_ERROR")
+
+
+class HumanReviewValidationError(DomainError):
+    """Raised when a human review action or state transition is invalid."""
+
+    def __init__(self, message: str):
+        super().__init__(message, code="HUMAN_REVIEW_VALIDATION_ERROR")
+
+
+class TranscriptIntegrityError(DomainError):
+    """Raised when a transcript fails pre-evaluation quality or lineage validation."""
+
+    def __init__(self, message: str, reason_codes: list[str] | None = None):
+        super().__init__(message, code="TRANSCRIPT_INTEGRITY_ERROR")
+        self.reason_codes = reason_codes or []
+

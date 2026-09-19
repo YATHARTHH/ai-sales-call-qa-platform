@@ -44,6 +44,35 @@ class CheckDefinition:
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
+class RuleType(StrEnum):
+    LEGAL_REQUIREMENT = "LEGAL_REQUIREMENT"
+    RETAILER_POLICY = "RETAILER_POLICY"
+    INTERNAL_QA_STANDARD = "INTERNAL_QA_STANDARD"
+
+
+@dataclass(frozen=True)
+class CheckApplicability:
+    """Applicability constraints for a check version. None = unrestricted; non-empty list = allow-list."""
+
+    fuel_types: list[str] | None = None
+    customer_types: list[str] | None = None
+    states: list[str] | None = None
+    campaign_ids: list[str] | None = None
+
+    def validate(self) -> None:
+        for name, val in (
+            ("fuel_types", self.fuel_types),
+            ("customer_types", self.customer_types),
+            ("states", self.states),
+            ("campaign_ids", self.campaign_ids),
+        ):
+            if val is not None and len(val) == 0:
+                raise DomainError(
+                    f"CheckApplicability.{name} cannot be an empty list; use None for unrestricted.",
+                    code="INVALID_APPLICABILITY_CONFIGURATION",
+                )
+
+
 @dataclass(frozen=True)
 class CheckVersion:
     """Historical version of a check rule with date-effective validity."""
@@ -55,6 +84,10 @@ class CheckVersion:
     effective_from: datetime
     effective_to: datetime | None  # None indicates currently active indefinite version
     parameters_json: dict[str, Any] = field(default_factory=dict)
+    jurisdiction: str = "AU-VIC"
+    regulatory_reference: str | None = None
+    rule_type: RuleType = RuleType.LEGAL_REQUIREMENT
+    applicability: CheckApplicability | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @classmethod
@@ -66,6 +99,10 @@ class CheckVersion:
         effective_from: datetime,
         effective_to: datetime | None,
         parameters_json: dict[str, Any],
+        jurisdiction: str = "AU-VIC",
+        regulatory_reference: str | None = None,
+        rule_type: RuleType = RuleType.LEGAL_REQUIREMENT,
+        applicability: CheckApplicability | None = None,
         version_id: str | None = None,
     ) -> "CheckVersion":
         eff_from = _ensure_utc(effective_from)
@@ -76,6 +113,9 @@ class CheckVersion:
                 f"effective_to ({eff_to}) cannot precede effective_from ({eff_from})",
                 code="INVALID_EFFECTIVE_PERIOD",
             )
+        if applicability is not None:
+            applicability.validate()
+
         return cls(
             id=version_id or str(uuid.uuid4()),
             check_id=check_id,
@@ -84,6 +124,10 @@ class CheckVersion:
             effective_from=eff_from,
             effective_to=eff_to,
             parameters_json=parameters_json,
+            jurisdiction=jurisdiction,
+            regulatory_reference=regulatory_reference,
+            rule_type=rule_type,
+            applicability=applicability,
             created_at=datetime.now(UTC),
         )
 

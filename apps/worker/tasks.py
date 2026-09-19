@@ -18,13 +18,16 @@ from packages.domain.exceptions import (
     LeaseLostError,
 )
 from packages.domain.jobs import FailureCategory, JobStatus, PipelineJob, RetryPolicy
+from packages.domain.provenance import AIProvenance
 from packages.domain.speech_metrics import SpeechBehaviorAnalyzer
+from packages.domain.state import GateStatus
 from packages.domain.transcript import (
     SpeakerType,
     Transcript,
     TranscriptAvailability,
     TranscriptSegment,
 )
+from packages.evaluation.engine import EvaluationOrchestrator
 from packages.infrastructure.config.settings import settings
 from packages.infrastructure.database.models.jobs import PipelineJobModel
 from packages.infrastructure.database.repositories.unit_of_work import SqlAlchemyUnitOfWork
@@ -461,6 +464,177 @@ async def execute_transcription_job(
                     os.remove(audio_source.local_path)
                 except OSError:
                     pass
+
+
+async def execute_evaluation_job(
+    job_id: str,
+    worker_id: str,
+    correlation_id: str,
+    session_factory=None,
+    orchestrator: EvaluationOrchestrator | None = None,
+    queue_adapter: RedisQueueAdapter | None = None,
+) -> None:
+    """Execute compliance evaluation across transcript segments with deterministic gate decision."""
+    logger.info("evaluation_job_started", job_id=job_id, worker_id=worker_id, correlation_id=correlation_id)
+    start_time = datetime.now(UTC)
+
+    factory = session_factory or async_session_factory
+    orch = orchestrator or EvaluationOrchestrator()
+
+    async with factory() as session:
+        uow = SqlAlchemyUnitOfWork(session)
+        try:
+            # 1. Atomic lease claim
+            claimed_job = await uow.jobs.claim_job_lease_atomic(
+                job_id=job_id,
+                worker_id=worker_id,
+                lease_duration_seconds=settings.worker_lease_duration_seconds,
+            )
+            if not claimed_job:
+                logger.warning("evaluation_job_not_claimable", job_id=job_id)
+                return
+
+            active_generation = claimed_job.lease_generation
+
+            # 2. Fetch recording and transcript
+            recording = await uow.transcripts.get_recording(claimed_job.recording_id)
+            if not recording:
+                logger.error("recording_missing_for_eval_job", recording_id=claimed_job.recording_id, job_id=job_id)
+                return
+
+            transcript = await uow.transcripts.get_transcript_by_recording_id(recording.id)
+            if not transcript:
+                logger.error("transcript_missing_for_eval_job", recording_id=recording.id, job_id=job_id)
+                return
+
+            segments = await uow.transcripts.get_transcript_segments(transcript.id)
+
+            # 3. Fetch sale, lead, and check library
+            sale = await uow.sales.get_sale(recording.sale_id)
+            lead = await uow.sales.get_lead(sale.lead_id) if sale and sale.lead_id else None
+
+            check_defs = await uow.checks.get_check_definitions()
+            check_versions = await uow.checks.get_all_check_versions_by_check_id(
+                retailer_id=sale.retailer_id if sale else None
+            )
+
+            prod_details = sale.product_details if sale and hasattr(sale, "product_details") else {}
+            sale_data = {
+                "id": sale.id if sale else "",
+                "retailer_id": sale.retailer_id if sale else "",
+                "customer_type": prod_details.get("customer_type", "RESIDENTIAL"),
+                "jurisdiction": prod_details.get("jurisdiction", "AU-VIC"),
+                "state": prod_details.get("state") or (lead.state if lead else "VIC"),
+                "campaign_id": sale.campaign_id if sale else "",
+                "details": prod_details,
+            }
+            lead_data = {
+                "id": lead.id if lead else "",
+                "customer_name": lead.customer_name if lead else "",
+                "email": lead.customer_email if lead else "",
+                "customer_email": lead.customer_email if lead else "",
+                "phone": lead.phone if lead else "",
+                "state": lead.state if lead else sale_data["state"],
+            }
+
+            provenance = AIProvenance(
+                provider="deterministic-evaluator",
+                model="qa-gate-engine",
+                model_version="1.0.0",
+                prompt_version="rules.v1",
+                check_version="check_set.v1",
+                policy_version="policy.v1",
+                pipeline_git_sha="git-sha-phase4",
+            )
+
+            # 4. Run Evaluation Orchestrator
+            payload = orch.execute_evaluation(
+                sale_id=sale.id if sale else recording.sale_id,
+                tenant_id=sale.retailer_id if sale else "default-tenant",
+                transcript=transcript,
+                segments=segments,
+                recording=recording,
+                check_definitions=check_defs,
+                check_versions_by_id=check_versions,
+                sale_data=sale_data,
+                lead_data=lead_data,
+                provenance=provenance,
+                policy_version="policy.v1",
+            )
+
+            # 5. Persist evaluation results
+            await uow.evaluations.save_evaluation_run(payload.run, payload.results, payload.evidences)
+            await uow.evaluations.save_gate_decision(payload.gate_decision)
+
+            # 6. Record Audit Event
+            audit = AuditEvent.record(
+                entity_type="GATE_DECISION",
+                entity_id=payload.gate_decision.id,
+                action="EVALUATED",
+                actor_type=ActorType.WORKER,
+                actor_id=worker_id,
+                correlation_id=correlation_id,
+                payload_json={
+                    "status": payload.gate_decision.status.value,
+                    "score": payload.gate_decision.overall_score,
+                    "decision_reason_code": payload.gate_decision.decision_reason_code,
+                    "blocking_check_ids": payload.gate_decision.blocking_check_ids,
+                },
+            )
+            await uow.audit.record_event(audit)
+
+            # 7. Transactional Outbox event
+            outbox_type = "SaleApproved" if payload.gate_decision.status == GateStatus.PASSED else "SaleHeld"
+            await uow.outbox.save_event(
+                event_type=outbox_type,
+                aggregate_type="SALE",
+                aggregate_id=sale.id if sale else recording.sale_id,
+                payload={
+                    "sale_id": sale.id if sale else recording.sale_id,
+                    "gate_decision_id": payload.gate_decision.id,
+                    "status": payload.gate_decision.status.value,
+                    "auto_submitted": payload.gate_decision.auto_submitted,
+                    "overall_score": payload.gate_decision.overall_score,
+                    "blocking_check_ids": payload.gate_decision.blocking_check_ids,
+                },
+                tenant_id=sale.retailer_id if sale else "default-tenant",
+                idempotency_key=f"outbox:eval:{payload.run.id}:{outbox_type}",
+            )
+
+            # 8. Complete job with lease fence
+            fenced = await uow.jobs.complete_job_with_lease_fence(
+                job_id=job_id,
+                worker_id=worker_id,
+                lease_generation=active_generation,
+            )
+            if not fenced:
+                raise LeaseLostError(
+                    f"Worker '{worker_id}' lost lease on job '{job_id}' (generation {active_generation}); transaction aborted."
+                )
+
+            # 9. Atomic commit
+            await uow.commit()
+
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            WORKER_JOBS_TOTAL.labels(stage="EVALUATING", status="COMPLETED").inc()
+            WORKER_JOB_DURATION_SECONDS.labels(stage="EVALUATING").observe(duration)
+
+            logger.info(
+                "evaluation_job_completed",
+                job_id=job_id,
+                run_id=payload.run.id,
+                gate_status=payload.gate_decision.status.value,
+                duration_s=duration,
+            )
+
+        except LeaseLostError as exc:
+            await uow.rollback()
+            logger.warning("evaluation_lease_lost_rollback", error=str(exc))
+            raise
+        except Exception as exc:
+            await uow.rollback()
+            logger.error("evaluation_job_failed", error=str(exc), exc_info=True)
+            raise
 
 
 async def recover_stale_jobs(policy: RetryPolicy | None = None, session_factory=None) -> int:
