@@ -37,6 +37,7 @@ Explore the complete 9-part technical documentation system in [`docs/`](file:///
 | **[07. Deployment, CI/CD, & SRE](file:///d:/ai-sales-call-qa-platform/docs/07_deployment_cicd_scalability_and_sre.md)** | Docker Compose configuration, Kubernetes horizontal worker scaling (Redis ARQ), CI/CD pipelines, and SRE operational alerting playbooks. |
 | **[08. API, Events, & Webhooks](file:///d:/ai-sales-call-qa-platform/docs/08_api_events_and_integration_reference.md)** | REST API endpoint specification, WebSocket / SSE event streaming formats, and transactional outbox webhook event payloads. |
 | **[09. Interview Prep & FAQ](file:///d:/ai-sales-call-qa-platform/docs/09_interview_prep_glossary_and_faq.md)** | Architectural deep-dive Q&A, Australian telesales compliance glossary (DMO, VDO, EIC, ACMA, AER), and system engineer FAQ. |
+| **[10. Complete System Architecture Walkthrough](file:///d:/ai-sales-call-qa-platform/docs/10_complete_system_architecture_walkthrough.md)** | Comprehensive 6-module architecture walkthrough covering Boxes 1 to 6 and supporting infrastructure in plain language. |
 
 ---
 
